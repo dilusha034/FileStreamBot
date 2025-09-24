@@ -1,17 +1,6 @@
-<h1 align="center">FileStreamBot</h1>
 <p align="center">
-  <a href="https://github.com/Avipatilpro/FileStreamBot">
-    <img src="https://graph.org/file/80d1f94e81bbc1acadb36.jpg" alt="Cover Image" width="550">
-  </a>
-</p>  
-  <p align="center">
-   </strong></a>
-    <br><b>
-    <a href="https://github.com/Avipatilpro/FileStreamBot/issues">Report a Bug</a>
-    |
-    <a href="https://github.com/Avipatilpro/FileStreamBot/issues">Request Feature</a></b>
-  </p>
-
+  <img src="https://github.com/dilusha034/FileStreamBot/blob/main/photo_2025-09-24_00-54-09.jpg?raw=true" alt="POP Tv Logo">
+</p>
 
 
 ### 🍁 About :
