@@ -183,7 +183,7 @@ PORT = 8080
 - [**Biisal**](https://github.com/biisal) : for Stream Page UI
 
 ---
-<h4 align='center'>© 2024 Aνιѕнкαя Pαтιℓ</h4>
+<h4 align='center'>© 2025 @Mr_D_2000</h4>
 
 
 
