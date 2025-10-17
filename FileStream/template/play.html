@@ -41,9 +41,7 @@
     <div class="outer">
         <div class="inner">
             <div class="main" id="main">
-                <video id="player" class="player" src="{{file_url}}" type="video/mp4" playsinline controls
-                    width="100%"></video>
-                <div class="player"></div>
+                <video id="player" playsinline controls></video>
                 <div class="file-name">
                     <h4 style="display: inline;">ගොනුවේ නම: </h4>
                     <p style="display: inline;" id="myDiv">{{file_name}}</p><br>
@@ -156,4 +154,31 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
+<!-- ========================================================================= -->
+<!-- START: NEW PLYR.IO PLAYER SCRIPT (POP TV ONE CUSTOM) -->
+<!-- ========================================================================= -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const video = document.getElementById('player');
+        const source = "{{ file_url }}";
+
+        // Add the video source dynamically
+        video.src = source;
+
+        const playerOptions = {
+            title: '{{ file_name }}',
+            controls: [
+                'play-large', 'restart', 'rewind', 'play', 'fast-forward', 'progress', 
+                'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 
+                'pip', 'airplay', 'fullscreen'
+            ],
+            settings: ['captions', 'quality', 'speed', 'loop'],
+            tooltips: { controls: true, seek: true }
+        };
+        
+        const player = new Plyr(video, playerOptions);
+        window.player = player;
+    });
+</script>
+    
 </html>
