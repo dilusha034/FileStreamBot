@@ -21,7 +21,6 @@
     <nav>
         <div class="nleft">
             <a href="#">
-                <!-- **අවසාන වෙනස!** -->
                 <h3 id="heading" style="z-index: 100;" class="magnet">POP TV ONE</h3>
             </a>
         </div>
@@ -41,7 +40,9 @@
     <div class="outer">
         <div class="inner">
             <div class="main" id="main">
-                <video id="player" playsinline controls></video>
+                <video id="player" class="player" src="{{file_url}}" type="video/mp4" playsinline controls
+                    width="100%"></video>
+                <div class="player"></div>
                 <div class="file-name">
                     <h4 style="display: inline;">ගොනුවේ නම: </h4>
                     <p style="display: inline;" id="myDiv">{{file_name}}</p><br>
@@ -68,71 +69,11 @@
 
             </div>
             <div class="abt">
-                <div class="about">
-                    <div class="about-dets">
-                        <div class="abt-sec" id="abtus" style="padding: 160px 30px;">
-                            <h1 style="text-align: center;">POP TV ONE වෙත <Span>සාදරයෙන්</Span> පිළිගනිමු</h1>
-                            <p style="text-align: center; line-height: 2;word-spacing: 2px;  letter-spacing: 0.8px;">
-                                මෙය POP Tv One හි නිල චිත්‍රපට සහ කතා මාලා නැරඹීමේ පිටුවයි. ඔබට අවශ්‍ය නම් මෙතනින් කෙලින්ම නැරඹීමට හෝ බාගත කිරීමට හැකිය. 
-                                <br><br>ඔබ මෙම සේවාවට කැමති නම්, ඔබේ මිතුරන් සමගද බෙදාගැනීමට අමතක කරන්න එපා!
-                            </p>
-                        </div>
-
-                        <div class="abt-sec" id="channels">
-                            <h1>අපේ <span>TELEGRAM</span> චැනල්</h1>
-                            <div class="links chnl-link">
-                                <a class="magnet" href="https://t.me/POPTvOne">
-                                    <button>POP TV ONE (Movies & TV)</button>
-                                </a>
-                                <!-- ඔබට තව චැනල් තියෙනවා නම්, මේ line එක copy-paste කරලා, link එකයි නමයි වෙනස් කරන්න -->
-                                <!-- <a class="magnet" href="ඔබේ දෙවෙනි channel link එක">
-                                    <button>ඔබේ දෙවෙනි channel එකේ නම</button>
-                                </a> -->
-                            </div>
-                        </div>
-
-                        <div class="abt-sec" id="contact">
-                            <p style="text-align: center;">යම් ගැටළුවක් හෝ දෝෂයක් ඇත්නම්, පහතින් අපව අමතන්න</p>
-                            <div class="links contact">
-                                <a href="https://t.me/Mr_D_2000">
-                                    <button>සම්බන්ධ වන්න (Contact)</button>
-                                </a>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
+                <!-- ... your other html ... -->
             </div>
         </div>
         <footer>
-            <center>
-                <div class="movie-cont">
-                    <div class="movieSug">
-                        <div class="movieDets">
-
-                        </div>
-                        <div class="movieimg">
-                            <img src="">
-                        </div>
-                    </div>
-                    <div class="low-width-movie-dets">
-                        <div class="movieStsBar">
-                            <div class="movieDets-mini">
-
-                            </div>
-                        </div>
-                    </div>
-                    <button class="ranMovBtn" onclick="getDets()">Get More Movies Suggestion</button>
-                </div>
-            </center>
-
-            <center>
-                <div class="copyright">
-                    <h5 class="text-center">Copyright © 2025 <a href="https://t.me/POPTvOne"><span
-                                style="font-weight: 700;">POP Tv One</span></a>. All
-                        Rights Reserved.</h5>
-                </div>
-            </center>
+            <!-- ... your other html ... -->
         </footer>
     </div>
 </body>
@@ -146,65 +87,14 @@
     document.addEventListener("DOMContentLoaded", function () {
         const uncopyableElement = document.querySelector(".uncopyable");
 
-        uncopyableElement.addEventListener("selectstart", function (event) {
-            event.preventDefault();
-        });
+        if(uncopyableElement) {
+            uncopyableElement.addEventListener("selectstart", function (event) {
+                event.preventDefault();
+            });
+        }
     });
 </script>
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-    <!-- Plyr.io Player Initialization & Double-Tap Feature -->
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const videoElement = document.getElementById('player');
-        videoElement.src = "{{ file_url }}"; // Set the source
-
-        const player = new Plyr(videoElement, {
-            controls: [
-                'play-large', 'restart', 'rewind', 'play', 'fast-forward', 'progress',
-                'current-time', 'duration', 'mute', 'volume', 'captions', 'settings',
-                'pip', 'airplay', 'fullscreen'
-            ],
-            settings: ['captions', 'quality', 'speed', 'loop'],
-            tooltips: { controls: true, seek: true }
-        });
-
-        <!-- Plyr.io Player Initialization & Double-Tap Feature -->
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const videoElement = document.getElementById('player');
-        videoElement.src = "{{ file_url }}"; // Set the source
-
-        const player = new Plyr(videoElement, {
-            controls: [
-                'play-large', 'restart', 'rewind', 'play', 'fast-forward', 'progress',
-                'current-time', 'duration', 'mute', 'volume', 'captions', 'settings',
-                'pip', 'airplay', 'fullscreen'
-            ],
-            settings: ['captions', 'quality', 'speed', 'loop'],
-            tooltips: { controls: true, seek: true }
-        });
-
-        // --- Double Tap to Skip Feature ---
-        const playerContainer = player.elements.container;
-        let lastTap = 0;
-        playerContainer.addEventListener('touchend', event => {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
-            if (tapLength < 300 && tapLength > 0) {
-                const rect = playerContainer.getBoundingClientRect();
-                const tapPosition = event.changedTouches[0].clientX - rect.left;
-                if (tapPosition < rect.width / 3) {
-                    player.rewind(10); // Rewind 10 seconds
-                } else if (tapPosition > (rect.width / 3) * 2) {
-                    player.forward(10); // Forward 10 seconds
-                }
-            }
-            lastTap = currentTime;
-        });
-    });
-</script>
-    
-</body>
 </html>
