@@ -8,11 +8,8 @@ from aiohttp.http_exceptions import BadStatusLine
 from FileStream.bot import multi_clients, work_loads, FileStream
 from FileStream.config import Telegram, Server
 from FileStream.server.exceptions import FIleNotFound, InvalidHash
-
-# IMPORTANT: Make sure render_template is imported correctly
-from FileStream.utils.render_template import render_page as render_template
-
 from FileStream import utils, StartTime, __version__
+from FileStream.utils.render_template import render_page
 
 routes = web.RouteTableDef()
 
@@ -22,7 +19,7 @@ async def root_route_handler(_):
         {
             "server_status": "running",
             "uptime": utils.get_readable_time(time.time() - StartTime),
-            "telegram_bot": "@" + (await FileStream.get_me()).username,
+            "telegram_bot": "@" + FileStream.username,
             "connected_bots": len(multi_clients),
             "loads": dict(
                 ("bot" + str(c + 1), l)
@@ -34,43 +31,34 @@ async def root_route_handler(_):
         }
     )
 
-# ------------------------- THIS IS THE MAGIC FIX -------------------------
-@routes.get("/watch/{path:.*}")
-async def watch_handler(request: web.Request):
+@routes.get("/watch/{path}", allow_head=True)
+async def stream_handler(request: web.Request):
     try:
         path = request.match_info["path"]
-        
-        # Pass the path to the template
-        context = {"path": path}
-        
-        # Render the new player.html template
-        return await render_template("player.html", request, context=context)
-
+        return web.Response(text=await render_page(path), content_type='text/html')
     except InvalidHash as e:
-        raise web.HTTPForbidden(text=str(e))
+        raise web.HTTPForbidden(text=e.message)
     except FIleNotFound as e:
-        raise web.HTTPNotFound(text=str(e))
-    except Exception as e:
-        logging.error(f"Error in watch_handler: {e}")
-        traceback.print_exc()
-        raise web.HTTPInternalServerError(text="Something went wrong while trying to show the player.")
-# ------------------------- END OF FIX -------------------------
+        raise web.HTTPNotFound(text=e.message)
+    except (AttributeError, BadStatusLine, ConnectionResetError):
+        pass
 
 
-@routes.get("/dl/{path:.*}")
-async def dl_handler(request: web.Request):
+@routes.get("/dl/{path}", allow_head=True)
+async def stream_handler(request: web.Request):
     try:
         path = request.match_info["path"]
         return await media_streamer(request, path)
     except InvalidHash as e:
-        raise web.HTTPForbidden(text=str(e))
+        raise web.HTTPForbidden(text=e.message)
     except FIleNotFound as e:
-        raise web.HTTPNotFound(text=str(e))
+        raise web.HTTPNotFound(text=e.message)
     except (AttributeError, BadStatusLine, ConnectionResetError):
-        pass # These are common network errors, ignore them
+        pass
     except Exception as e:
-        logging.error(f"Error in dl_handler: {e}")
         traceback.print_exc()
+        logging.critical(e.with_traceback(None))
+        logging.debug(traceback.format_exc())
         raise web.HTTPInternalServerError(text=str(e))
 
 class_cache = {}
@@ -86,11 +74,15 @@ async def media_streamer(request: web.Request, db_id: str):
 
     if faster_client in class_cache:
         tg_connect = class_cache[faster_client]
+        logging.debug(f"Using cached ByteStreamer object for client {index}")
     else:
+        logging.debug(f"Creating new ByteStreamer object for client {index}")
         tg_connect = utils.ByteStreamer(faster_client)
         class_cache[faster_client] = tg_connect
-
-    file_id = await tg_connect.get_file_properties(db_id)
+    logging.debug("before calling get_file_properties")
+    file_id = await tg_connect.get_file_properties(db_id, multi_clients)
+    logging.debug("after calling get_file_properties")
+    
     file_size = file_id.file_size
 
     if range_header:
@@ -114,9 +106,9 @@ async def media_streamer(request: web.Request, db_id: str):
     offset = from_bytes - (from_bytes % chunk_size)
     first_part_cut = from_bytes - offset
     last_part_cut = until_bytes % chunk_size + 1
+
     req_length = until_bytes - from_bytes + 1
     part_count = math.ceil(until_bytes / chunk_size) - math.floor(offset / chunk_size)
-    
     body = tg_connect.yield_file(
         file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size
     )
@@ -128,8 +120,8 @@ async def media_streamer(request: web.Request, db_id: str):
     if not mime_type:
         mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
 
-    if "video/" in mime_type or "audio/" in mime_type:
-        disposition = "inline"
+    # if "video/" in mime_type or "audio/" in mime_type:
+    #     disposition = "inline"
 
     return web.Response(
         status=206 if range_header else 200,
