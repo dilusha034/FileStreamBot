@@ -65,6 +65,9 @@
                     <button class="magnet" onclick="n_player()">
                         <img src="https://i.ibb.co/Hd2dS4t/nPlayer.png" alt="">nPlayer
                     </button>
+                     <button class="magnet" onclick="triggerSubUpload()">
+        <img style="height: 30px;" src="https://i.ibb.co/wzWzM5N/subtitle-icon.png" alt="">උපසිරැසි එක් කරන්න
+                         <input type="file" id="subtitle-upload" accept=".srt, .vtt" style="display: none;">
                 </div>
 
             </div>
@@ -93,8 +96,55 @@
             });
         }
     });
-</script>
-<script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
-<script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
+    
+    </script>
+    <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 
+    <!-- === මෙතනින් පටන්ගෙන අලුත් කේතය Paste කරන්න === -->
+    <script>
+        // 'උපසිරැසි එක් කරන්න' බොත්තම click කළ විට නොපෙනෙන file input එක click කරවීම
+        function triggerSubUpload() {
+            document.getElementById('subtitle-upload').click();
+        }
+
+        // පරිශීලකයා subtitle ගොනුවක් තේරූ විට ක්‍රියාත්මක වන කොටස
+        document.addEventListener('DOMContentLoaded', () => {
+            const subtitleInput = document.getElementById('subtitle-upload');
+            const videoPlayer = document.getElementById('player');
+
+            // Plyr.js ප්ලේයරය සඳහා වූ instance එක ලබා ගැනීම
+            // 'player' යනු ඔබගේ script.js හි Plyr.setup() මගින් සාදන ලද variable එකේ නම විය හැක
+            // එසේ නොමැති නම්, const player = new Plyr('#player'); ලෙස අලුතින් සෑදිය හැක.
+            // දැනට අපි player instance එක නොමැතිව උත්සාහ කරමු.
+            
+            subtitleInput.addEventListener('change', event => {
+                const file = event.target.files[0];
+                if (!file) {
+                    return;
+                }
+
+                // පවතින custom උපසිරැසි ඉවත් කිරීම
+                const existingTrack = videoPlayer.querySelector("track[data-custom-subtitle]");
+                if (existingTrack) {
+                    existingTrack.remove();
+                }
+
+                // තේරූ ගොනුව සඳහා තාවකාලික URL එකක් සෑදීම
+                const subtitleURL = URL.createObjectURL(file);
+
+                // නව <track> element එකක් සකසා video player එකට එක් කිරීම
+                const track = document.createElement('track');
+                track.kind = 'subtitles';
+                track.label = 'Custom Sub'; // ඔබට කැමති නමක් දෙන්න
+                track.srclang = 'si'; // සිංහල සඳහා 'si'
+                track.src = subtitleURL;
+                track.setAttribute('data-custom-subtitle', 'true'); // මෙය අප විසින් එක් කළ track එකක් ලෙස හඳුනාගැනීමට
+                track.default = true; // upload කළ සැනින් activate වීමට
+
+                videoPlayer.appendChild(track);
+            });
+        });
+    </script>
+
+    <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 </html>
