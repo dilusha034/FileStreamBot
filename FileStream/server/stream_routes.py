@@ -138,7 +138,7 @@ async def media_streamer(request: web.Request, db_id: str):
 # -----------------------------------------------------------------------------------------
 # START: Custom Player Page Route for POP Tv One
 # -----------------------------------------------------------------------------------------
-@routes.get("/play/{_}")
+@routes.get("/play")
 async def player_page(request: web.Request):
     try:
         return await render_template("player.html", request)
