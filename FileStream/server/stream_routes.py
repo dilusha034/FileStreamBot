@@ -10,7 +10,7 @@ from FileStream.config import Telegram, Server
 from FileStream.server.exceptions import FIleNotFound, InvalidHash
 
 # IMPORTANT: Make sure render_template is imported correctly
-from FileStream.utils.render_template import render_template
+from FileStream.utils.render_template import render_page as render_template
 
 from FileStream import utils, StartTime, __version__
 
