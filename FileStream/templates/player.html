@@ -22,8 +22,12 @@
             }
 
             // --- Get Video & Subtitle from URL ---
-            const videoSrc = atob(getQueryParam('video') || '');
-            const subSrc = atob(getQueryParam('sub') || '');
+            const path = "{{ path }}";
+const base_url = window.location.origin;
+
+const videoSrc = `${base_url}/${path}`;
+// Since we don't have subtitle in this route, we leave it empty
+const subSrc = '';
             
             // --- Plyr Player Options ---
             const playerOptions = {
