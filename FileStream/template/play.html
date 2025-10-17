@@ -170,24 +170,59 @@
             tooltips: { controls: true, seek: true }
         });
 
-        // --- Double Tap to Skip Feature ---
-        const playerContainer = player.elements.container;
-        let lastTap = 0;
-        playerContainer.addEventListener('touchend', event => {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
-            if (tapLength < 300 && tapLength > 0) {
-                const rect = playerContainer.getBoundingClientRect();
-                const tapPosition = event.changedTouches[0].clientX - rect.left;
-                if (tapPosition < rect.width / 3) {
-                    player.rewind(10); // Rewind 10 seconds
-                } else if (tapPosition > (rect.width / 3) * 2) {
-                    player.forward(10); // Forward 10 seconds
+        // --- START: ADVANCED Double Tap to Skip Feature with Animation ---
+            const playerContainer = player.elements.container;
+            let lastTap = 0;
+
+            player.on('ready', () => {
+                // Intercept the default dblclick event on the container
+                playerContainer.addEventListener('dblclick', event => {
+                    event.stopPropagation(); // Stop the default fullscreen toggle
+                });
+            });
+
+            playerContainer.addEventListener('touchend', event => {
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                
+                if (tapLength < 300 && tapLength > 0) {
+                    event.preventDefault(); // Stop any other default behavior
+
+                    const rect = playerContainer.getBoundingClientRect();
+                    const tapPosition = event.changedTouches[0].clientX - rect.left;
+
+                    // Create and show the animation element
+                    const animationElement = document.createElement('div');
+                    animationElement.style.cssText = 'position: absolute; top: 50%; transform: translateY(-50%); color: white; background-color: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 20px; font-size: 16px; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;';
+                    
+                    if (tapPosition < rect.width / 3) {
+                        // Double tap on the left third
+                        player.rewind(10);
+                        animationElement.innerHTML = '&#9664;&#9664; 10s'; // << 10s
+                        animationElement.style.left = '15%';
+                    } else if (tapPosition > (rect.width / 3) * 2) {
+                        // Double tap on the right third
+                        player.forward(10);
+                        animationElement.innerHTML = '10s &#9654;&#9654;'; // 10s >>
+                        animationElement.style.right = '15%';
+                    } else {
+                        // Double tap in the middle, just toggle play/pause
+                        player.togglePlay();
+                        lastTap = 0; // Reset tap to prevent immediate re-trigger
+                        return; // Exit function
+                    }
+                    
+                    player.elements.wrapper.appendChild(animationElement);
+                    
+                    // Animate in
+                    setTimeout(() => { animationElement.style.opacity = '1'; }, 10);
+                    // Animate out and remove
+                    setTimeout(() => { animationElement.style.opacity = '0'; }, 500);
+                    setTimeout(() => { animationElement.remove(); }, 800);
                 }
-            }
-            lastTap = currentTime;
-        });
-    });
+                lastTap = currentTime;
+            });
+            // --- END: ADVANCED Double Tap to Skip Feature ---
 </script>
     
 </body>
