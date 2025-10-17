@@ -41,9 +41,7 @@
     <div class="outer">
         <div class="inner">
             <div class="main" id="main">
-                <video id="player" class="player" src="{{file_url}}" type="video/mp4" playsinline controls
-                    width="100%"></video>
-                <div class="player"></div>
+                <video id="player" playsinline controls></video>
                 <div class="file-name">
                     <h4 style="display: inline;">ගොනුවේ නම: </h4>
                     <p style="display: inline;" id="myDiv">{{file_name}}</p><br>
@@ -155,5 +153,18 @@
 </script>
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
+
+    <!-- Plyr.io Player Initialization Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const videoElement = document.getElementById('player');
+        videoElement.src = "{{ file_url }}"; // Set the source
+
+        const player = new Plyr(videoElement, {
+            // Add any options here if you want in the future
+            // For now, let's keep it simple
+        });
+    });
+</script>
 
 </html>
