@@ -134,3 +134,18 @@ async def media_streamer(request: web.Request, db_id: str):
             "Accept-Ranges": "bytes",
         },
     )
+
+# -----------------------------------------------------------------------------------------
+# START: Custom Player Page Route for POP Tv One
+# -----------------------------------------------------------------------------------------
+@routes.get("/play/{_}")
+async def player_page(request: web.Request):
+    try:
+        return await render_template("player.html", request)
+    except Exception as e:
+        logging.info(f"Error serving player page: {e}")
+        raise web.HTTPNotFound(text="Something went wrong")
+
+# -----------------------------------------------------------------------------------------
+# END: Custom Player Page Route
+# -----------------------------------------------------------------------------------------
