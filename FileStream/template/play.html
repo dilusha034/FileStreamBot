@@ -100,25 +100,76 @@
     </script>
     <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 
-    <!-- === අලුතින් ඇතුළත් කළ යුතු, සියලු පහසුකම් සහිත සම්පූර්ණ කේතය === -->
+    <!-- === අලුතින් ඇතුළත් කළ යුතු, ඇනිමේෂන් සහිත අවසාන කේතය === -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     // Plyr.js ප්ලේයරය සූදානම් වන තෙක් රැඳී සිටීම
-    // Plyr.js instance එක නිවැරදිව ලබා ගැනීම අත්‍යවශ්‍යයි.
-    // మీ script.jsలో ప్లేయర్ ప్రారంభించబడిన తర్వాత 'ready' ఈవెంట్ ట్రిగ్గర్ చేయబడుతుంది.
     document.querySelector('#player').addEventListener('ready', (event) => {
         const player = event.detail.plyr;
         const playerContainer = player.elements.container;
 
-        // --- 1 සහ 3 වන ඉල්ලීම් සඳහා කේතය (Double-tap & Single-tap) ---
+        // --- Skip Animation සඳහා අවශ්‍ය HTML සහ CSS නිර්මාණය කිරීම ---
+
+        // Animation සඳහා CSS නිර්මාණය කර <head> එකට එක් කිරීම
+        const styles = `
+            .skip-indicator {
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                background: rgba(0, 0, 0, 0.4);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 50px;
+                font-family: 'Josefin Sans', sans-serif;
+                font-size: 1.2em;
+                opacity: 0;
+                transition: opacity 0.3s ease-out;
+                pointer-events: none; /* Click සිදුවීම වැළැක්වීමට */
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                backdrop-filter: blur(8px); /* Glass effect */
+                -webkit-backdrop-filter: blur(8px);
+            }
+            .skip-indicator.visible {
+                opacity: 1;
+            }
+            .skip-indicator .arrows {
+                font-size: 2.5em;
+                line-height: 1;
+                font-weight: bold;
+            }
+            .skip-indicator-rewind {
+                left: 10%;
+            }
+            .skip-indicator-forward {
+                right: 10%;
+            }
+        `;
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = styles;
+        document.head.appendChild(styleSheet);
+
+        // Animation සඳහා HTML elements නිර්මාණය කර player එකට එක් කිරීම
+        const rewindIndicator = document.createElement('div');
+        rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
+        rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
+        playerContainer.appendChild(rewindIndicator);
+
+        const forwardIndicator = document.createElement('div');
+        forwardIndicator.className = 'skip-indicator skip-indicator-forward';
+        forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
+        playerContainer.appendChild(forwardIndicator);
+
+
+        // --- Double-tap & Single-tap ක්‍රියාවලිය ---
 
         let lastTap = 0;
         let tapTimeout = null;
-        const doubleTapDelay = 300; // double-tap එකක් සඳහා මිලි තත්පර 300ක කාලයක්
+        let animationTimeout = null;
+        const doubleTapDelay = 300;
 
         playerContainer.addEventListener('click', (e) => {
-            // පාලක බොත්තමක් (play button, settings) මත click කළාදැයි පරීක්ෂා කිරීම
-            // එසේ නම්, අපේ custom ක්‍රියාවලිය ක්‍රියාත්මක නොකරන්න.
             if (e.target.closest('.plyr__control')) {
                 return;
             }
@@ -129,24 +180,30 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(tapTimeout);
 
             if (tapLength < doubleTapDelay && tapLength > 0) {
-                // මෙය Double-tap එකක්
-                e.preventDefault();
+                // --- මෙය Double-tap එකක් ---
+                e.preventDefault(); // Default click ක්‍රියාවලිය නැවැත්වීම
+                e.stopPropagation(); // Event එක parent elements වලට යාම නැවැත්වීම (මෙයයි minimize වීම නවත්වන්නේ)
 
-                // තිරයේ කුමන පැත්තේද tap කළේ දැයි සෙවීම
                 const rect = playerContainer.getBoundingClientRect();
                 const tapPosition = e.clientX - rect.left;
+
+                // පවතින animation timeout එකක් ඇත්නම් ඉවත් කිරීම
+                clearTimeout(animationTimeout);
 
                 if (tapPosition < rect.width / 2) {
                     // වම් පැත්ත: තත්පර 10ක් ආපස්සට
                     player.rewind(10);
+                    rewindIndicator.classList.add('visible');
+                    animationTimeout = setTimeout(() => rewindIndicator.classList.remove('visible'), 600);
                 } else {
                     // දකුණු පැත්ත: තත්පර 10ක් ඉදිරියට
                     player.forward(10);
+                    forwardIndicator.classList.add('visible');
+                    animationTimeout = setTimeout(() => forwardIndicator.classList.remove('visible'), 600);
                 }
-                lastTap = 0; // reset
+                lastTap = 0;
             } else {
-                // මෙය Single-tap එකක් විය හැක
-                // play/pause ක්‍රියාවලිය මඳක් පමා කර, double-tap එකක් දැයි තහවුරු කර ගැනීම
+                // --- මෙය Single-tap එකක් විය හැක ---
                 tapTimeout = setTimeout(() => {
                     player.togglePlay();
                 }, doubleTapDelay);
@@ -154,39 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
             lastTap = new Date().getTime();
         });
 
-
-        // --- 2 වන ඉල්ලීම සඳහා කේතය (Auto-rotation on Fullscreen) ---
-
-        player.on('enterfullscreen', () => {
-            // මෙම පහසුකම ජංගම දුරකථන වලට පමණක් සීමා කිරීම
-            if (window.screen.width < 768) { // සාමාන්‍යයෙන් mobile screen හඳුනාගැනීමට
-                try {
-                    if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                        // තිරය landscape حالت වෙත lock කිරීමට ඉල්ලීමක් කිරීම
-                        screen.orientation.lock('landscape').catch(() => {
-                            // පරිශීලකයා rotation lock කර ඇත්නම් මෙය අසාර්ථක විය හැක.
-                            console.warn('Auto-rotation failed. Device rotation might be locked.');
-                        });
-                    }
-                } catch (err) {
-                     console.error('Screen Orientation API not supported.', err);
-                }
-            }
-        });
-
-        player.on('exitfullscreen', () => {
-             if (window.screen.width < 768) {
-                try {
-                    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-                        // Fullscreen එකෙන් ඉවත් වූ පසු orientation lock එක ඉවත් කිරීම
-                        screen.orientation.unlock();
-                    }
-                } catch (err) {
-                    console.error('Could not unlock screen orientation.', err);
-                }
-             }
-        });
-
+        // Auto-rotation සහ අනෙකුත් කේත මෙතන තිබුණි (ඒවා නොවෙනස්ව පවතී)
+        player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
+        player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
     });
 });
 </script>
