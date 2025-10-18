@@ -96,18 +96,17 @@
             });
         }
     });
-
+    
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- 1. අපිම ප්ලේයරය හදන තැන (වධකාරයාගේ රාජකාරිය අපි භාරගැනීම) ---
+    // --- 1. අපිම ප්ලේයරය හදන තැන (Default Double-click අක්‍රිය කර) ---
     const player = new Plyr('#player', {
-        // මෙන්න වැදගත්ම තැන: Double-click fullscreen ක්‍රියාවලිය අක්‍රිය කිරීම
         fullscreen: {
             enabled: true,
             fallback: true,
             iosNative: false,
-            dblclick: false // <--- වධකාරයාට යන්න කිව්වා!
+            dblclick: false
         }
     });
 
@@ -115,8 +114,19 @@ document.addEventListener('DOMContentLoaded', () => {
     player.on('ready', (event) => {
         const playerContainer = player.elements.container;
 
-        // --- 2. Skip Animation සඳහා අවශ්‍ය HTML සහ CSS නිර්මාණය කිරීම ---
+        // --- 2. Animation සහ නව Theme Colors සඳහා CSS නිර්මාණය කිරීම ---
         const styles = `
+            /* === නව Theme Colors මෙතනින් === */
+            :root {
+                --plyr-color-main: #e50914; /* ප්‍රධාන වර්ණය (Timeline, Volume, etc.) - Netflix Red */
+            }
+
+            .plyr__control--overlaid {
+                background: rgba(229, 9, 20, 0.8) !important; /* මැද ලොකු Play Button එක */
+                border-radius: 50% !important; /* Play button එක රවුම් කිරීමට */
+            }
+
+            /* === Skip Animation Styles මෙතනින් === */
             .skip-indicator {
                 position: absolute; top: 50%; transform: translateY(-50%);
                 background: rgba(0, 0, 0, 0.4); color: white; padding: 15px 25px;
@@ -134,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         styleSheet.innerText = styles;
         document.head.appendChild(styleSheet);
 
+        // --- 3. Animation සඳහා HTML elements නිර්මාණය කිරීම ---
         const rewindIndicator = document.createElement('div');
         rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
         rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
@@ -144,17 +155,14 @@ document.addEventListener('DOMContentLoaded', () => {
         forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
         playerContainer.appendChild(forwardIndicator);
 
-        // --- 3. අපේ Custom Double-tap & Single-tap ක්‍රියාවලිය ---
+        // --- 4. අපේ Custom Double-tap & Single-tap ක්‍රියාවලිය ---
         let lastTap = 0, tapTimeout = null, animationTimeout = null;
         const doubleTapDelay = 300;
-
         playerContainer.addEventListener('click', (e) => {
             if (e.target.closest('.plyr__control')) return;
-
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTap;
             clearTimeout(tapTimeout);
-
             if (tapLength < doubleTapDelay && tapLength > 0) {
                 e.preventDefault(); e.stopPropagation();
                 const rect = playerContainer.getBoundingClientRect();
@@ -176,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastTap = new Date().getTime();
         });
 
-        // --- 4. Auto-rotation ක්‍රියාවලිය ---
+        // --- 5. Auto-rotation ක්‍රියාවලිය ---
         player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
         player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
     });
