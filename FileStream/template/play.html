@@ -96,61 +96,44 @@
             });
         }
     });
-    
-    </script>
-    <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 
-    <!-- === අලුතින් ඇතුළත් කළ යුතු, ඇනිමේෂන් සහිත අවසාන කේතය === -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Plyr.js ප්ලේයරය සූදානම් වන තෙක් රැඳී සිටීම
-    document.querySelector('#player').addEventListener('ready', (event) => {
-        const player = event.detail.plyr;
+
+    // --- 1. අපිම ප්ලේයරය හදන තැන (වධකාරයාගේ රාජකාරිය අපි භාරගැනීම) ---
+    const player = new Plyr('#player', {
+        // මෙන්න වැදගත්ම තැන: Double-click fullscreen ක්‍රියාවලිය අක්‍රිය කිරීම
+        fullscreen: {
+            enabled: true,
+            fallback: true,
+            iosNative: false,
+            dblclick: false // <--- වධකාරයාට යන්න කිව්වා!
+        }
+    });
+
+    // Plyr.js ප්ලේයරය සූදානම් වූ පසු අපේ වැඩ ටික කිරීම
+    player.on('ready', (event) => {
         const playerContainer = player.elements.container;
 
-        // --- Skip Animation සඳහා අවශ්‍ය HTML සහ CSS නිර්මාණය කිරීම ---
-
-        // Animation සඳහා CSS නිර්මාණය කර <head> එකට එක් කිරීම
+        // --- 2. Skip Animation සඳහා අවශ්‍ය HTML සහ CSS නිර්මාණය කිරීම ---
         const styles = `
             .skip-indicator {
-                position: absolute;
-                top: 50%;
-                transform: translateY(-50%);
-                background: rgba(0, 0, 0, 0.4);
-                color: white;
-                padding: 15px 25px;
-                border-radius: 50px;
-                font-family: 'Josefin Sans', sans-serif;
-                font-size: 1.2em;
-                opacity: 0;
-                transition: opacity 0.3s ease-out;
-                pointer-events: none; /* Click සිදුවීම වැළැක්වීමට */
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                backdrop-filter: blur(8px); /* Glass effect */
-                -webkit-backdrop-filter: blur(8px);
+                position: absolute; top: 50%; transform: translateY(-50%);
+                background: rgba(0, 0, 0, 0.4); color: white; padding: 15px 25px;
+                border-radius: 50px; font-family: 'Josefin Sans', sans-serif; font-size: 1.2em;
+                opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none;
+                display: flex; flex-direction: column; align-items: center;
+                backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
             }
-            .skip-indicator.visible {
-                opacity: 1;
-            }
-            .skip-indicator .arrows {
-                font-size: 2.5em;
-                line-height: 1;
-                font-weight: bold;
-            }
-            .skip-indicator-rewind {
-                left: 10%;
-            }
-            .skip-indicator-forward {
-                right: 10%;
-            }
+            .skip-indicator.visible { opacity: 1; }
+            .skip-indicator .arrows { font-size: 2.5em; line-height: 1; font-weight: bold; }
+            .skip-indicator-rewind { left: 10%; }
+            .skip-indicator-forward { right: 10%; }
         `;
         const styleSheet = document.createElement("style");
         styleSheet.innerText = styles;
         document.head.appendChild(styleSheet);
 
-        // Animation සඳහා HTML elements නිර්මාණය කර player එකට එක් කිරීම
         const rewindIndicator = document.createElement('div');
         rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
         rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
@@ -161,63 +144,45 @@ document.addEventListener('DOMContentLoaded', () => {
         forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
         playerContainer.appendChild(forwardIndicator);
 
-
-        // --- Double-tap & Single-tap ක්‍රියාවලිය ---
-
-        let lastTap = 0;
-        let tapTimeout = null;
-        let animationTimeout = null;
+        // --- 3. අපේ Custom Double-tap & Single-tap ක්‍රියාවලිය ---
+        let lastTap = 0, tapTimeout = null, animationTimeout = null;
         const doubleTapDelay = 300;
 
         playerContainer.addEventListener('click', (e) => {
-            if (e.target.closest('.plyr__control')) {
-                return;
-            }
+            if (e.target.closest('.plyr__control')) return;
 
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTap;
-
             clearTimeout(tapTimeout);
 
             if (tapLength < doubleTapDelay && tapLength > 0) {
-                // --- මෙය Double-tap එකක් ---
-                e.preventDefault(); // Default click ක්‍රියාවලිය නැවැත්වීම
-                e.stopPropagation(); // Event එක parent elements වලට යාම නැවැත්වීම (මෙයයි minimize වීම නවත්වන්නේ)
-
+                e.preventDefault(); e.stopPropagation();
                 const rect = playerContainer.getBoundingClientRect();
                 const tapPosition = e.clientX - rect.left;
-
-                // පවතින animation timeout එකක් ඇත්නම් ඉවත් කිරීම
                 clearTimeout(animationTimeout);
-
                 if (tapPosition < rect.width / 2) {
-                    // වම් පැත්ත: තත්පර 10ක් ආපස්සට
                     player.rewind(10);
                     rewindIndicator.classList.add('visible');
                     animationTimeout = setTimeout(() => rewindIndicator.classList.remove('visible'), 600);
                 } else {
-                    // දකුණු පැත්ත: තත්පර 10ක් ඉදිරියට
                     player.forward(10);
                     forwardIndicator.classList.add('visible');
                     animationTimeout = setTimeout(() => forwardIndicator.classList.remove('visible'), 600);
                 }
                 lastTap = 0;
             } else {
-                // --- මෙය Single-tap එකක් විය හැක ---
-                tapTimeout = setTimeout(() => {
-                    player.togglePlay();
-                }, doubleTapDelay);
+                tapTimeout = setTimeout(() => player.togglePlay(), doubleTapDelay);
             }
             lastTap = new Date().getTime();
         });
 
-        // Auto-rotation සහ අනෙකුත් කේත මෙතන තිබුණි (ඒවා නොවෙනස්ව පවතී)
+        // --- 4. Auto-rotation ක්‍රියාවලිය ---
         player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
         player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
     });
 });
 </script>
-<!-- === අලුත් කේතය මෙතනින් අවසන් === -->
+<!-- === මෙතනින් අවසන් === -->
 
     <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 </html>
