@@ -267,70 +267,84 @@ document.addEventListener('DOMContentLoaded', () => {
 let lastTap = 0, tapTimeout = null, animationTimeout = null; const doubleTapDelay = 300;
 playerContainer.addEventListener('click', (e) => {
     // ... මේ ඇතුලේ තියෙන සියලුම දේ...
-});```
-...මෙම සම්පූර්ණ කොටසම ඉවත් කරන්න.
+});
+        
+        // --- 5. නව ක්‍රමය: ඔබාගෙන සිටීමෙන් Skip කිරීම (Hold-to-Seek) ---
+        let seekInterval = null; // වීඩියෝව දිගටම skip කරවීමට
+        let holdTimeout = null; // ඔබාගෙන සිටිනවාදැයි බැලීමට
+        let isSeeking = false; // දැනට skip කරමින් සිටීදැයි දැනගැනීමට
+        const HOLD_DELAY = 250; // මිලි තත්පර 250ක් (තත්පර 1/4ක්) ඔබාගෙන සිටියහොත් skip වීම ඇරඹේ
 
-#### පියවර 2: ඒ වෙනුවට මෙම අලුත් කේත කොටස යොදන්න
+        // Skip කිරීමේ වේගය (තත්පරයට කොපමණ වේගයෙන් skip විය යුතුද යන්න)
+        const SEEK_SPEED_MULTIPLIER = 2; // මෙය වැඩි කරන විට වේගය වැඩි වේ
 
-ඉහතින් ඉවත් කළ තැනට, පහත **නව කේත කොටස සම්පූර්ණයෙන්ම paste කරන්න.**
-
-```javascript
-        // --- 5. Double-tap & Single-tap ක්‍රියාවලිය (Mobile සහ Desktop සඳහාම) ---
-        let lastTapTime = 0;
-        let tapTimeout = null;
-        let animationTimeout = null;
-        const doubleTapDelay = 300; // මිලි තත්පර
-
-        const handleTap = (e) => {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTapTime;
-
-            clearTimeout(tapTimeout);
-
-            // ඩබල්-ටැප් එකක්දැයි පරීක්ෂා කිරීම
-            if (tapLength < doubleTapDelay && tapLength > 0) {
-                e.preventDefault(); // Browser එකේ default හැසිරීම (minimize/zoom වීම) සම්පූර්ණයෙන්ම නවත්වනවා
-                
+        const startSeeking = (e) => {
+            // Browser එකේ default හැසිරීම (text select වීම, context menu ඒම) නැවැත්වීම
+            e.preventDefault(); 
+            
+            // ටයිමරයක් ආරම්භ කිරීම. HOLD_DELAY එකට කලින් ඇඟිල්ල ඉවත් කළහොත් මෙය ක්‍රියාත්මක නොවේ.
+            holdTimeout = setTimeout(() => {
+                isSeeking = true;
                 const rect = playerContainer.getBoundingClientRect();
-                const tapPosition = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) - rect.left;
+                // ස්පර්ශ කළේ mobile එකෙන්ද PC එකෙන්දැයි බලා, නිවැරදි X අගය ගැනීම
+                const touchX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+                const tapPosition = touchX - rect.left;
 
-                clearTimeout(animationTimeout);
-
-                if (tapPosition < rect.width / 2) {
-                    player.rewind(10);
-                    rewindIndicator.classList.add('visible');
-                    animationTimeout = setTimeout(() => rewindIndicator.classList.remove('visible'), 600);
-                } else {
-                    player.forward(10);
+                // දකුණු පැත්ත ඔබාගෙන සිටී නම්...
+                if (tapPosition > rect.width / 2) {
+                    forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>Fast Forward</span>`;
                     forwardIndicator.classList.add('visible');
-                    animationTimeout = setTimeout(() => forwardIndicator.classList.remove('visible'), 600);
+                    // මිලි තත්පර 100කට වරක් වීඩියෝව ඉදිරියට ගැනීම
+                    seekInterval = setInterval(() => {
+                        player.currentTime += (0.1 * SEEK_SPEED_MULTIPLIER);
+                    }, 100);
+                } 
+                // වම් පැත්ත ඔබාගෙන සිටී නම්...
+                else {
+                    rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>Rewind</span>`;
+                    rewindIndicator.classList.add('visible');
+                    // මිලි තත්පර 100කට වරක් වීඩියෝව පසුපසට ගැනීම
+                    seekInterval = setInterval(() => {
+                        player.currentTime -= (0.1 * SEEK_SPEED_MULTIPLIER);
+                    }, 100);
                 }
-                lastTapTime = 0; // ඊළඟ ටැප් එකට reset කිරීම
-            } 
-            // නැතිනම් එය සිංගල්-ටැප් එකක්
-            else {
-                tapTimeout = setTimeout(() => {
-                    if (!player.paused && player.playing) {
-                        player.togglePlay();
-                    } else {
-                        player.togglePlay();
-                    }
-                }, doubleTapDelay);
-            }
-            lastTapTime = currentTime;
+            }, HOLD_DELAY);
         };
 
-        // Mobile උපාංග සඳහා touchend event එක භාවිතා කිරීම (මෙයයි වැදගත්ම කොටස)
-        playerContainer.addEventListener('touchend', handleTap);
-        
-        // Desktop උපාංග සඳහා click event එක භාවිතා කිරීම (PC එකට)
-        playerContainer.addEventListener('click', (e) => {
-             // Touch event එකක් මගින් click එකක් ආවා නම් එය නොසලකා හැරීම
-            if (e.detail === 0) { 
-                return;
+        const stopSeeking = (e) => {
+            e.preventDefault();
+            // ඔබාගෙන සිටීම ඇරඹීමට පෙර ඇඟිල්ල ඉවත් කළහොත්...
+            clearTimeout(holdTimeout);
+
+            // එය දිගු වේලාවක් ඔබාගෙන සිටීමක් (seek) නොවේ නම්, එය single-tap එකක් ලෙස සලකා play/pause කිරීම
+            if (!isSeeking) {
+                player.togglePlay();
+            } 
+            // දැනටමත් skip කරමින් සිටියා නම්...
+            else {
+                clearInterval(seekInterval);
+                seekInterval = null;
+                isSeeking = false;
+                rewindIndicator.classList.remove('visible');
+                forwardIndicator.classList.remove('visible');
+                
+                // දර්ශකයේ පාඨය නැවත පැරණි තත්ත්වයට පත් කිරීම
+                setTimeout(()=> {
+                    forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
+                    rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
+                }, 300);
             }
-            handleTap(e);
-        });
+        };
+
+        // පරිශීලකයා ස්පර්ශ කිරීම ඇරඹූ විට (PC සහ Mobile දෙකටම)
+        playerContainer.addEventListener('mousedown', startSeeking);
+        playerContainer.addEventListener('touchstart', startSeeking, { passive: false });
+
+        // පරිශීලකයා ස්පර්ශය අවසන් කළ විට (PC සහ Mobile දෙකටම)
+        playerContainer.addEventListener('mouseup', stopSeeking);
+        playerContainer.addEventListener('mouseleave', stopSeeking);
+        playerContainer.addEventListener('touchend', stopSeeking);
+        playerContainer.addEventListener('touchcancel', stopSeeking);
 
         // --- 6. Auto-rotation ක්‍රියාවලිය ---
         player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
