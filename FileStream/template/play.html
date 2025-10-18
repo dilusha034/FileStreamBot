@@ -100,63 +100,95 @@
     </script>
     <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 
-    <!-- === අලුතින් ඇතුළත් කළ යුතු වැඩි දියුණු කළ කේතය === -->
+    <!-- === අලුතින් ඇතුළත් කළ යුතු, සියලු පහසුකම් සහිත සම්පූර්ණ කේතය === -->
 <script>
-    // 'උපසිරැසි එක් කරන්න' බොත්තම click කළ විට නොපෙනෙන file input එක click කරවීම
-    function triggerSubUpload() {
-        document.getElementById('subtitle-upload').click();
-    }
+document.addEventListener('DOMContentLoaded', () => {
+    // Plyr.js ප්ලේයරය සූදානම් වන තෙක් රැඳී සිටීම
+    // Plyr.js instance එක නිවැරදිව ලබා ගැනීම අත්‍යවශ්‍යයි.
+    // మీ script.jsలో ప్లేయర్ ప్రారంభించబడిన తర్వాత 'ready' ఈవెంట్ ట్రిగ్గర్ చేయబడుతుంది.
+    document.querySelector('#player').addEventListener('ready', (event) => {
+        const player = event.detail.plyr;
+        const playerContainer = player.elements.container;
 
-    // පිටුව load වූ පසු ක්‍රියාත්මක වන කොටස
-    document.addEventListener('DOMContentLoaded', () => {
-        const subtitleInput = document.getElementById('subtitle-upload');
-        const videoElement = document.getElementById('player');
+        // --- 1 සහ 3 වන ඉල්ලීම් සඳහා කේතය (Double-tap & Single-tap) ---
 
-        // පරිශීලකයා උපසිරැසි ගොනුවක් තේරූ විට
-        subtitleInput.addEventListener('change', event => {
-            const file = event.target.files[0];
-            if (!file) {
+        let lastTap = 0;
+        let tapTimeout = null;
+        const doubleTapDelay = 300; // double-tap එකක් සඳහා මිලි තත්පර 300ක කාලයක්
+
+        playerContainer.addEventListener('click', (e) => {
+            // පාලක බොත්තමක් (play button, settings) මත click කළාදැයි පරීක්ෂා කිරීම
+            // එසේ නම්, අපේ custom ක්‍රියාවලිය ක්‍රියාත්මක නොකරන්න.
+            if (e.target.closest('.plyr__control')) {
                 return;
             }
 
-            // Plyr ප්ලේයරයේ instance එක ලබා ගැනීම.
-            // සාමාන්‍යයෙන් Plyr විසින් එය වීඩියෝ element එකේම 'plyr' නමින් ගබඩා කරයි.
-            const player = videoElement.plyr;
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
 
-            if (!player) {
-                console.error('Plyr player instance not found!');
-                return;
+            clearTimeout(tapTimeout);
+
+            if (tapLength < doubleTapDelay && tapLength > 0) {
+                // මෙය Double-tap එකක්
+                e.preventDefault();
+
+                // තිරයේ කුමන පැත්තේද tap කළේ දැයි සෙවීම
+                const rect = playerContainer.getBoundingClientRect();
+                const tapPosition = e.clientX - rect.left;
+
+                if (tapPosition < rect.width / 2) {
+                    // වම් පැත්ත: තත්පර 10ක් ආපස්සට
+                    player.rewind(10);
+                } else {
+                    // දකුණු පැත්ත: තත්පර 10ක් ඉදිරියට
+                    player.forward(10);
+                }
+                lastTap = 0; // reset
+            } else {
+                // මෙය Single-tap එකක් විය හැක
+                // play/pause ක්‍රියාවලිය මඳක් පමා කර, double-tap එකක් දැයි තහවුරු කර ගැනීම
+                tapTimeout = setTimeout(() => {
+                    player.togglePlay();
+                }, doubleTapDelay);
             }
-
-            // පවතින custom උපසිරැසි ඉවත් කිරීම (නැවත upload කළහොත්)
-            const existingTrack = videoElement.querySelector("track[data-custom-subtitle]");
-            if (existingTrack) {
-                existingTrack.remove();
-            }
-
-            // තේරූ ගොනුව සඳහා තාවකාලික URL එකක් සෑදීම
-            const subtitleURL = URL.createObjectURL(file);
-
-            // නව <track> element එකක් සකසා video player එකට එක් කිරීම
-            const track = document.createElement('track');
-            track.kind = 'subtitles';
-            track.label = 'My Subtitles'; // ඔබට කැමති නමක් දෙන්න
-            track.srclang = 'si';
-            track.src = subtitleURL;
-            track.setAttribute('data-custom-subtitle', 'true'); // මෙය අප විසින් එක් කළ track එකක් ලෙස හඳුනාගැනීමට
-            track.default = true;
-
-            videoElement.appendChild(track);
-
-            // === වැදගත්ම කොටස: Plyr ප්ලේයරයට උපසිරැසි refresh කරන ලෙස දැනුම් දීම ===
-            // උපසිරැසි මෙනුව පෙන්වීමට මඳ වේලාවක් ලබා දීම
-            setTimeout(() => {
-                player.captions.enabled = true; // උපසිරැසි on කිරීම
-            }, 100);
-
-            console.log('Subtitle track added successfully.');
+            lastTap = new Date().getTime();
         });
+
+
+        // --- 2 වන ඉල්ලීම සඳහා කේතය (Auto-rotation on Fullscreen) ---
+
+        player.on('enterfullscreen', () => {
+            // මෙම පහසුකම ජංගම දුරකථන වලට පමණක් සීමා කිරීම
+            if (window.screen.width < 768) { // සාමාන්‍යයෙන් mobile screen හඳුනාගැනීමට
+                try {
+                    if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                        // තිරය landscape حالت වෙත lock කිරීමට ඉල්ලීමක් කිරීම
+                        screen.orientation.lock('landscape').catch(() => {
+                            // පරිශීලකයා rotation lock කර ඇත්නම් මෙය අසාර්ථක විය හැක.
+                            console.warn('Auto-rotation failed. Device rotation might be locked.');
+                        });
+                    }
+                } catch (err) {
+                     console.error('Screen Orientation API not supported.', err);
+                }
+            }
+        });
+
+        player.on('exitfullscreen', () => {
+             if (window.screen.width < 768) {
+                try {
+                    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                        // Fullscreen එකෙන් ඉවත් වූ පසු orientation lock එක ඉවත් කිරීම
+                        screen.orientation.unlock();
+                    }
+                } catch (err) {
+                    console.error('Could not unlock screen orientation.', err);
+                }
+             }
+        });
+
     });
+});
 </script>
 <!-- === අලුත් කේතය මෙතනින් අවසන් === -->
 
