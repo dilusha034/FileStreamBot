@@ -264,24 +264,72 @@ document.addEventListener('DOMContentLoaded', () => {
         playerContainer.appendChild(forwardIndicator);
 
         // --- 5. Double-tap & Single-tap ක්‍රියාවලිය ---
-        let lastTap = 0, tapTimeout = null, animationTimeout = null; const doubleTapDelay = 300;
-        playerContainer.addEventListener('click', (e) => {
-            if (e.target.closest('.plyr__control')) return;
-            const currentTime = new Date().getTime(); const tapLength = currentTime - lastTap; clearTimeout(tapTimeout);
+let lastTap = 0, tapTimeout = null, animationTimeout = null; const doubleTapDelay = 300;
+playerContainer.addEventListener('click', (e) => {
+    // ... මේ ඇතුලේ තියෙන සියලුම දේ...
+});```
+...මෙම සම්පූර්ණ කොටසම ඉවත් කරන්න.
+
+#### පියවර 2: ඒ වෙනුවට මෙම අලුත් කේත කොටස යොදන්න
+
+ඉහතින් ඉවත් කළ තැනට, පහත **නව කේත කොටස සම්පූර්ණයෙන්ම paste කරන්න.**
+
+```javascript
+        // --- 5. Double-tap & Single-tap ක්‍රියාවලිය (Mobile සහ Desktop සඳහාම) ---
+        let lastTapTime = 0;
+        let tapTimeout = null;
+        let animationTimeout = null;
+        const doubleTapDelay = 300; // මිලි තත්පර
+
+        const handleTap = (e) => {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTapTime;
+
+            clearTimeout(tapTimeout);
+
+            // ඩබල්-ටැප් එකක්දැයි පරීක්ෂා කිරීම
             if (tapLength < doubleTapDelay && tapLength > 0) {
-                e.preventDefault(); e.stopPropagation();
-                const rect = playerContainer.getBoundingClientRect(); const tapPosition = e.clientX - rect.left;
+                e.preventDefault(); // Browser එකේ default හැසිරීම (minimize/zoom වීම) සම්පූර්ණයෙන්ම නවත්වනවා
+                
+                const rect = playerContainer.getBoundingClientRect();
+                const tapPosition = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) - rect.left;
+
                 clearTimeout(animationTimeout);
+
                 if (tapPosition < rect.width / 2) {
-                    player.rewind(10); rewindIndicator.classList.add('visible');
+                    player.rewind(10);
+                    rewindIndicator.classList.add('visible');
                     animationTimeout = setTimeout(() => rewindIndicator.classList.remove('visible'), 600);
                 } else {
-                    player.forward(10); forwardIndicator.classList.add('visible');
+                    player.forward(10);
+                    forwardIndicator.classList.add('visible');
                     animationTimeout = setTimeout(() => forwardIndicator.classList.remove('visible'), 600);
                 }
-                lastTap = 0;
-            } else { tapTimeout = setTimeout(() => player.togglePlay(), doubleTapDelay); }
-            lastTap = new Date().getTime();
+                lastTapTime = 0; // ඊළඟ ටැප් එකට reset කිරීම
+            } 
+            // නැතිනම් එය සිංගල්-ටැප් එකක්
+            else {
+                tapTimeout = setTimeout(() => {
+                    if (!player.paused && player.playing) {
+                        player.togglePlay();
+                    } else {
+                        player.togglePlay();
+                    }
+                }, doubleTapDelay);
+            }
+            lastTapTime = currentTime;
+        };
+
+        // Mobile උපාංග සඳහා touchend event එක භාවිතා කිරීම (මෙයයි වැදගත්ම කොටස)
+        playerContainer.addEventListener('touchend', handleTap);
+        
+        // Desktop උපාංග සඳහා click event එක භාවිතා කිරීම (PC එකට)
+        playerContainer.addEventListener('click', (e) => {
+             // Touch event එකක් මගින් click එකක් ආවා නම් එය නොසලකා හැරීම
+            if (e.detail === 0) { 
+                return;
+            }
+            handleTap(e);
         });
 
         // --- 6. Auto-rotation ක්‍රියාවලිය ---
