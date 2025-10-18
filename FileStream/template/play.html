@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
         playerContainer.appendChild(forwardIndicator);
 
-        // --- 5. අවසාන ක්‍රමය: Hold-to-Seek සහ Tap/Double-Tap ක්‍රියාවලිය ---
+        // --- 5. අවසාන සහ නිවැරදිම ක්‍රමය: Mobile සහ Desktop සඳහා ---
         let seekInterval = null, holdTimeout = null, tapTimeout = null;
         let isSeeking = false;
         let lastTapTime = 0;
@@ -272,11 +272,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const SEEK_SPEED_MULTIPLIER = 2;
 
         const startInteraction = (e) => {
-            // වැදගත්ම කොටස: පරිශීලකයා control bar එකේ බොත්තමක් click කළේ නම්, කිසිවක් නොකරන්න
-            if (e.target.closest('.plyr__controls')) {
-                return;
-            }
-            e.preventDefault(); 
+            // Control bar එකේ බොත්තමක් නම්, කිසිවක් නොකරන්න
+            if (e.target.closest('.plyr__controls')) return;
+            
+            // Mobile වලදී browser එකේ default gesture (zoom etc.) නැවැත්වීම
+            if (e.type === 'touchstart') e.preventDefault(); 
             
             holdTimeout = setTimeout(() => {
                 isSeeking = true;
@@ -297,11 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const stopInteraction = (e) => {
-            // පරිශීලකයා control bar එකේ බොත්තමක් click කළේ නම්, කිසිවක් නොකරන්න
-            if (e.target.closest('.plyr__controls')) {
-                return;
-            }
-            e.preventDefault();
+            // Control bar එකේ බොත්තමක් නම්, කිසිවක් නොකරන්න
+            if (e.target.closest('.plyr__controls')) return;
+
+            if (e.type === 'touchend' || e.type === 'touchcancel') e.preventDefault();
+
             clearTimeout(holdTimeout);
 
             if (isSeeking) {
@@ -314,32 +314,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
                 }, 300);
             } else {
-                // Hold-to-seek එකක් නොවේ නම්, Tap/Double-Tap ක්‍රියාවලිය මෙතනින් පාලනය කරන්න
+                // Tap/Double-Tap ක්‍රියාවලිය
                 const currentTime = new Date().getTime();
                 const tapLength = currentTime - lastTapTime;
                 clearTimeout(tapTimeout);
 
                 if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
-                    // Double Tap: Fullscreen මාරු කිරීම
+                    // Double Tap: Fullscreen (Mobile සහ Desktop දෙකටම)
                     player.fullscreen.toggle();
                     lastTapTime = 0;
                 } else {
-                    // Single Tap: Play/Pause කිරීම
-                    tapTimeout = setTimeout(() => {
-                        player.togglePlay();
-                    }, DOUBLE_TAP_DELAY);
+                    // Single Tap: Play/Pause (Desktop එකට පමණයි)
+                    if (e.type === 'mouseup') { // 'mouseup' යනු mouse click එකක්
+                         tapTimeout = setTimeout(() => {
+                            player.togglePlay();
+                        }, DOUBLE_TAP_DELAY);
+                    }
                 }
                 lastTapTime = currentTime;
             }
         };
 
+        // Mouse එක player එකෙන් එලියට යන විට ක්‍රියාත්මක විය යුතු දේ
+        const cancelInteraction = () => {
+            clearTimeout(holdTimeout);
+            if(isSeeking) {
+                clearInterval(seekInterval);
+                isSeeking = false;
+                rewindIndicator.classList.remove('visible');
+                forwardIndicator.classList.remove('visible');
+            }
+        };
+
         // Event Listeners
-        playerContainer.addEventListener('mousedown', startInteraction);
-        playerContainer.addEventListener('touchstart', startInteraction, { passive: false });
-        playerContainer.addEventListener('mouseup', stopInteraction);
-        playerContainer.addEventListener('mouseleave', stopInteraction);
-        playerContainer.addEventListener('touchend', stopInteraction);
+        playerContainer.addEventListener('mousedown', startInteraction); // PC click start
+        playerContainer.addEventListener('touchstart', startInteraction, { passive: false }); // Mobile touch start
+
+        playerContainer.addEventListener('mouseup', stopInteraction); // PC click end
+        playerContainer.addEventListener('touchend', stopInteraction, { passive: false }); // Mobile touch end
         playerContainer.addEventListener('touchcancel', stopInteraction);
+
+        // Desktop ගැටලුවට විසඳුම: Mouse එක එලියට යනවිට වෙනමම function එකක්
+        playerContainer.addEventListener('mouseleave', cancelInteraction);
 
         // --- 6. Auto-rotation ක්‍රියාවලිය ---
         player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
