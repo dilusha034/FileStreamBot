@@ -171,7 +171,23 @@ let tapTimeout = null;
 let lastTapTime = 0;
 const DOUBLE_TAP_DELAY = 300;
 
+// 2. Double-tap to Skip & other Mobile Gestures (FIXED)
+const playerContainer = player.elements.container;
+const rewindIndicator = document.createElement('div');
+rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
+rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
+playerContainer.appendChild(rewindIndicator);
+const forwardIndicator = document.createElement('div');
+forwardIndicator.className = 'skip-indicator skip-indicator-forward';
+forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
+playerContainer.appendChild(forwardIndicator);
+
+let tapTimeout = null;
+let lastTapTime = 0;
+const DOUBLE_TAP_DELAY = 300;
+
 playerContainer.addEventListener('click', (e) => {
+    // ප්ලේයරයේ control bar එක click කළොත්, අපේ කිසිම දෙයක් කරන්න එපා
     if (e.target.closest('.plyr__controls')) return;
 
     const currentTime = new Date().getTime();
@@ -179,30 +195,34 @@ playerContainer.addEventListener('click', (e) => {
     clearTimeout(tapTimeout);
 
     if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
+        // --- මෙන්න අපේ නිවැරදි කිරීම! ---
+        // මේ double tap එක ගැන වෙන කිසිම කෙනෙක්ට දැනගන්න ඉඩ තියන්න එපා!
+        e.stopPropagation(); 
+        
         // Double Tap
         const rect = playerContainer.getBoundingClientRect();
         const tapPositionX = e.clientX - rect.left;
 
         if (tapPositionX < rect.width * 0.3) {
+            // වම් පැත්තට double tap - Rewind
             player.rewind(10);
             rewindIndicator.classList.add('visible');
             setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
         } else if (tapPositionX > rect.width * 0.7) {
+            // දකුණු පැත්තට double tap - Forward
             player.forward(10);
             forwardIndicator.classList.add('visible');
             setTimeout(() => forwardIndicator.classList.remove('visible'), 500);
         } else {
+            // මැද double tap - Fullscreen
             player.fullscreen.toggle();
         }
-        lastTapTime = 0;
+        lastTapTime = 0; // double tap එකක් නිසා, single tap timer එක reset කරනවා
     } else {
         // Single Tap
         tapTimeout = setTimeout(() => {
-             if (!player.playing) {
-                player.play();
-            } else {
-                player.pause();
-            }
+            // single tap එකකින් play/pause වෙනවා
+            player.togglePlay();
         }, DOUBLE_TAP_DELAY);
     }
     lastTapTime = currentTime;
