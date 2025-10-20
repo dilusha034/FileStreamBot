@@ -63,23 +63,22 @@ async def subtitle_handler(request: web.Request):
 
         # ffmpeg command to extract the first subtitle track and convert to webvtt
         command = [
-            'ffmpeg', '-i', 'pipe:0',  # Input from stdin
-            '-map', '0:s:0',          # Select the first subtitle stream
-            '-f', 'webvtt',           # Output format
-            'pipe:1'                  # Output to stdout
+            'ffmpeg', '-i', 'pipe:0',
+            '-map', '0:s:0',
+            '-f', 'webvtt',
+            'pipe:1'
         ]
         
         process = await asyncio.create_subprocess_exec(
             *command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE  # Capture stderr to log errors
+            stderr=subprocess.PIPE
         )
 
         response = web.StreamResponse(headers={'Content-Type': 'text/vtt'})
         await response.prepare(request)
 
-        # Pipe the file stream to ffmpeg's stdin
         async def pipe_to_ffmpeg():
             try:
                 async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024):
@@ -92,7 +91,6 @@ async def subtitle_handler(request: web.Request):
                 if not process.stdin.is_closing():
                     process.stdin.close()
 
-        # Pipe ffmpeg's stdout to the client
         async def pipe_to_client():
             try:
                 while not process.stdout.at_eof():
