@@ -16,7 +16,7 @@ from FileStream.utils.render_template import render_page
 routes = web.RouteTableDef()
 class_cache = {}
 
-# --- 1. Status Route එක ---
+# --- Status Route එක ---
 @routes.get("/status", allow_head=True)
 async def status_handler(_):
     return web.json_response(
@@ -35,7 +35,7 @@ async def status_handler(_):
         }
     )
 
-# --- 2. Web Player Page එක පෙන්වන Route එක (වෙනස් නමකින්) ---
+# --- Web Player Page එක ---
 @routes.get("/watch/{path}", allow_head=True)
 async def watch_handler(request: web.Request):
     try:
@@ -45,90 +45,93 @@ async def watch_handler(request: web.Request):
         raise web.HTTPForbidden(text=e.message)
     except FIleNotFound as e:
         raise web.HTTPNotFound(text=e.message)
-    except (AttributeError, BadStatusLine, ConnectionResetError):
-        pass
 
-# --- 3. වීඩියෝ දත්ත යවන Route එක (වෙනස් නමකින්) ---
-@routes.get("/dl/{path}", allow_head=True)
-async def download_handler(request: web.Request):
+# --- අපේ අලුත් Subtitle Route එක ---
+@routes.get("/subtitle/{db_id}")
+async def subtitle_handler(request: web.Request):
     try:
-        db_id = request.match_info["path"]
-        
+        db_id = request.match_info['db_id']
         index = min(work_loads, key=work_loads.get)
         faster_client = multi_clients[index]
-        
-        if faster_client in class_cache:
-            tg_connect = class_cache[faster_client]
-        else:
+
+        tg_connect = class_cache.get(faster_client)
+        if not tg_connect:
             tg_connect = utils.ByteStreamer(faster_client)
             class_cache[faster_client] = tg_connect
         
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
 
-        remux_formats = ["video/x-matroska", "video/x-msvideo"]
+        # ffmpeg command to extract the first subtitle track and convert to webvtt
+        command = [
+            'ffmpeg', '-i', 'pipe:0',  # Input from stdin
+            '-map', '0:s:0',          # Select the first subtitle stream
+            '-f', 'webvtt',           # Output format
+            'pipe:1'                  # Output to stdout
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE  # Capture stderr to log errors
+        )
 
-        if file_id.mime_type in remux_formats:
-            original_name = utils.get_name(file_id)
-            new_name = original_name.rsplit('.', 1)[0] + ".mp4" if '.' in original_name else original_name + ".mp4"
-            logging.info(f"Remuxing '{original_name}' to MP4 for streaming.")
+        response = web.StreamResponse(headers={'Content-Type': 'text/vtt'})
+        await response.prepare(request)
 
-            command = ['ffmpeg', '-i', '-', '-c', 'copy', '-f', 'mp4', '-movflags', 'frag_keyframe+empty_moov', 'pipe:1']
-            
-            process = await asyncio.create_subprocess_exec(*command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            response = web.StreamResponse(headers={"Content-Type": "video/mp4", "Content-Disposition": f"inline; filename=\"{new_name}\""})
-            await response.prepare(request)
-
+        # Pipe the file stream to ffmpeg's stdin
+        async def pipe_to_ffmpeg():
             try:
-                async def pipe_to_ffmpeg():
-                    try:
-                        async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024):
-                            if process.stdin.is_closing(): break
-                            process.stdin.write(chunk)
-                            await process.stdin.drain()
-                    except (asyncio.CancelledError, ConnectionResetError): pass
-                    finally:
-                        if not process.stdin.is_closing(): process.stdin.close()
-                
-                async def pipe_to_client():
-                    try:
-                        while not process.stdout.at_eof():
-                            chunk = await process.stdout.read(4096)
-                            if not chunk: break
-                            await response.write(chunk)
-                    except (asyncio.CancelledError, ConnectionResetError): pass
-                
-                async def log_stderr():
-                    while not process.stderr.at_eof():
-                        line = await process.stderr.readline()
-                        if line: logging.error(f"FFmpeg stderr: {line.decode().strip()}")
-
-                await asyncio.gather(pipe_to_ffmpeg(), pipe_to_client(), log_stderr())
-                await response.write_eof()
-                return response
-                
-            except asyncio.CancelledError:
-                process.kill()
-                await process.wait()
-                return response
+                async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024):
+                    if process.stdin.is_closing(): break
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+            except (asyncio.CancelledError, ConnectionResetError):
+                pass
             finally:
-                if process.returncode is None: process.kill()
-                await process.wait()
-                logging.info(f"Remux for '{original_name}' finished with code {process.returncode}")
+                if not process.stdin.is_closing():
+                    process.stdin.close()
 
-        else:
-            logging.info(f"Passing '{utils.get_name(file_id)}' to standard streamer.")
-            return await media_streamer(request, db_id)
+        # Pipe ffmpeg's stdout to the client
+        async def pipe_to_client():
+            try:
+                while not process.stdout.at_eof():
+                    chunk = await process.stdout.read(4096)
+                    if not chunk: break
+                    await response.write(chunk)
+            except (asyncio.CancelledError, ConnectionResetError):
+                pass
+        
+        async def log_stderr():
+            while not process.stderr.at_eof():
+                line = await process.stderr.readline()
+                if line: logging.error(f"FFmpeg Subtitle stderr: {line.decode().strip()}")
 
-    except (InvalidHash, FIleNotFound) as e:
-        raise web.HTTPForbidden(text=e.message)
-    except (AttributeError, BadStatusLine, ConnectionResetError): pass
+
+        await asyncio.gather(pipe_to_ffmpeg(), pipe_to_client(), log_stderr())
+        await response.write_eof()
+        return response
+
     except Exception as e:
-        traceback.print_exc()
-        logging.critical(e)
+        logging.error(f"Subtitle generation failed: {e}")
+        return web.Response(status=500, text="Failed to extract subtitle.")
+
+# --- Video/File Download Route එක ---
+@routes.get("/dl/{path}", allow_head=True)
+async def download_handler(request: web.Request):
+    try:
+        return await media_streamer(request, request.match_info["path"])
+    except InvalidHash as e:
+        raise web.HTTPForbidden(text=e.message)
+    except FIleNotFound as e:
+        raise web.HTTPNotFound(text=e.message)
+    except (AttributeError, BadStatusLine, ConnectionResetError):
+        pass
+    except Exception as e:
+        logging.critical(traceback.format_exc())
         raise web.HTTPInternalServerError(text=str(e))
 
-# --- 4. MP4 වැනි සාමාන්‍ය ගොනු සඳහා වන, වෙනස් නොකළ media_streamer function එක ---
+# --- Media Streamer (Core Logic) ---
 async def media_streamer(request: web.Request, db_id: str):
     range_header = request.headers.get("Range", 0)
     
