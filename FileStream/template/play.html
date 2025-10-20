@@ -149,4 +149,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 </script>
 
+<!-- === අපේ අවසාන පාලන කේතය (The Final Control Code) === -->
+<script>
+    
+    // පිටුවේ ඇති සියලුම දේ (කරදරකාරී script.js ඇතුළුව) load වී අවසන් වන තුරු බලා සිටින්න
+    window.addEventListener('load', function() {
+        
+        // අර script.js එකට player එක හදලා ඉවර කරන්න පොඩි වෙලාවක් දෙමු (මිලි තත්පර 500)
+        setTimeout(function() {
+            try {
+                // --- 1. Player එක අපේ පාලනයට ගැනීම ---
+                const videoElement = document.getElementById('player');
+                const player = Plyr.get(videoElement); // දැනටමත් හදපු player එක අල්ලගන්නවා
+
+                if (player) {
+                    const fileName = "{{file_name}}";
+                    const fileUrl = "{{file_url}}";
+
+                    const sources = {
+                        type: 'video',
+                        title: fileName,
+                        sources: [{ src: fileUrl }],
+                        tracks: []
+                    };
+
+                    // MKV file එකක් නම්, අපේ subtitle පාරෙන් උපසිරැසිය ඉල්ලනවා
+                    if (fileName.toLowerCase().endsWith('.mkv')) {
+                        sources.tracks.push({
+                            kind: 'subtitles',
+                            label: 'සිංහල',
+                            srclang: 'si',
+                            src: fileUrl.replace('/dl/', '/subtitle/'),
+                            default: true,
+                        });
+                        console.log("Subtitle track added for MKV file.");
+                    }
+
+                    // Player එකේ source එක, අපේ settings එක්ක update කරනවා
+                    player.source = sources;
+
+                    // Player එක play වෙන්න ලෑස්ති වුණාම, subtitle එක on කරනවා
+                    player.on('ready', () => {
+                        player.toggleCaptions(true);
+                    });
+                } else {
+                    console.error("Plyr player instance not found!");
+                }
+
+                // --- 2. Title එක අපේ පාලනයට ගැනීම ---
+                const heading = document.getElementById('heading');
+                if (heading) {
+                    heading.textContent = 'POP Tv One';
+                    heading.style.visibility = 'visible';
+                }
+
+            } catch (error) {
+                console.error("Error in Final Control Code:", error);
+            }
+        }, 500); // මිලි තත්පර 500ක් පසුව අපේ කේතය ක්‍රියාත්මක කරන්න
+    });
+</script>
+    
 </html>
