@@ -187,7 +187,7 @@ async def media_streamer(request: web.Request, db_id: str):
         },
     )
 
-# --- 5 උපසිරැසි සඳහා වන අවසාන සහ නිවැරදි කරන ලද Route එක ---
+# --- 5 උපසිරැසි සඳහා වන අවසාන, ස්ථාවර සහ මතකය කළමනාකරණය කරන Route එක ---
 @routes.get("/subtitle/{path}")
 async def get_subtitle_as_vtt(request: web.Request):
     try:
@@ -204,43 +204,67 @@ async def get_subtitle_as_vtt(request: web.Request):
             
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
 
-        # ffmpeg command එක: stdin වෙතින් input ලබාගෙන, 
-        # පළමු උපසිරැසි stream එක webvtt format එකට convert කර stdout වෙත ලබා දෙන්න.
         command = [
-            'ffmpeg', '-i', '-', '-map', '0:s:0', '-f', 'webvtt', '-'
+            'ffmpeg', '-i', '-', '-map', '0:s:0', '-f', 'webvtt', 'pipe:1'
         ]
         
         process = await asyncio.create_subprocess_exec(
             *command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE # දෝෂ log කිරීමට
-        )
-        
-        # ffmpeg ක්‍රියාවලියට වීඩියෝ දත්ත stream කිරීම සහ ප්‍රතිදානය ලබාගැනීම
-        # මෙය සම්පූර්ණ ගොනුවම download නොකර සිදු කරයි
-        stdout, stderr = await process.communicate(
-            input=b''.join([
-                chunk async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024)
-            ])
+            stderr=subprocess.PIPE
         )
 
-        if process.returncode != 0:
-            # උපසිරැසි නොමැති වීම දෝෂයක් නොවේ, එය സാധാരണ දෙයක්
-            if b"Subtitle stream not found" in stderr:
-                logging.info(f"'{utils.get_name(file_id)}' ගොනුවේ උපසිරැසි නොමැත.")
-                return web.Response(status=404, text="No Subtitles Found")
-            else:
-                logging.error(f"ffmpeg දෝෂය: {stderr.decode().strip()}")
-                raise web.HTTPInternalServerError()
-        
-        # සාර්ථකව උපසිරැසි extract කල හොත්, VTT දත්ත response එක ලෙස යැවීම
-        return web.Response(
-            body=stdout,
-            content_type="text/vtt",
-            charset="utf-8"
-        )
+        # Response එක සූදානම් කර, ffmpeg ක්‍රියාවලිය සමඟ එකවර ක්‍රියාත්මක වීම
+        response = web.StreamResponse(headers={'Content-Type': 'text/vtt', 'Charset': 'utf-8'})
+        await response.prepare(request)
 
+        # --- දත්ත එකවර pipe කිරීම සහ stream කිරීමේ ක්‍රියාවලි දෙක ---
+        async def pipe_to_ffmpeg():
+            # Telegram වෙතින් chunk ලබාගෙන ffmpeg stdin වෙත යැවීම
+            try:
+                async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024):
+                    if process.stdin.is_closing():
+                        break
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+            except (asyncio.CancelledError, ConnectionResetError):
+                pass
+            finally:
+                if not process.stdin.is_closing():
+                    process.stdin.close()
+
+        async def pipe_to_client():
+            # ffmpeg stdout වෙතින් VTT දත්ත ලබාගෙන client වෙත යැවීම
+            try:
+                while not process.stdout.at_eof():
+                    chunk = await process.stdout.read(4096)
+                    if not chunk:
+                        break
+                    await response.write(chunk)
+            except (asyncio.CancelledError, ConnectionResetError):
+                pass
+
+        # දෝෂ log කිරීම සඳහා
+        stderr_task = asyncio.create_task(process.stderr.read())
+        
+        # ක්‍රියාවලි දෙකම සමාන්තරව ක්‍රියාත්මක කිරීම
+        await asyncio.gather(pipe_to_ffmpeg(), pipe_to_client())
+        
+        await response.write_eof()
+        
+        stderr_output = await stderr_task
+        if b"Subtitle stream not found" in stderr_output:
+            logging.info(f"'{utils.get_name(file_id)}' ගොනුවේ උපසිරැසි නොමැත.")
+            # මෙම අවස්ථාවේදී client connection එක දැනටමත් close වී ඇති නිසා, 404 යැවීම තේරුමක් නැත.
+            # හිස් response එකක් යැවීම ප්‍රමාණවත්.
+            return web.Response(status=404)
+
+        return response
+
+    except (ConnectionResetError, asyncio.CancelledError):
+        logging.info("Client disconnected during subtitle streaming.")
+        return web.Response(status=500)
     except Exception as e:
         logging.error(f"get_subtitle_as_vtt හි දෝෂයක්: {e}")
         traceback.print_exc()
