@@ -368,11 +368,26 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
     <script>
-    // පිටුව සම්පූර්ණයෙන් load වූ පසු මෙම කේතය ක්‍රියාත්මක වේ
-    window.onload = function() {
-        // 'heading' යන ID එක ඇති element එක සොයාගෙන එහි නම නැවත වෙනස් කරයි
-        document.getElementById('heading').textContent = 'POP Tv One';
+    // අපි මුර කරන්න යන element එක (අපේ නම තියෙන තැන)
+    const targetNode = document.getElementById('heading');
+
+    // අපි තහවුරු කරන්න යන නිවැරදි නම
+    const correctName = 'POP Tv One';
+
+    // වෙනසක් අඳුනගත්තම මොකද කරන්නේ කියන එක
+    const callback = function(mutationsList, observer) {
+        // අර script එක නම වෙනස් කළොත්...
+        if (targetNode.textContent !== correctName) {
+            // අපි ඒ ගමන්ම ආපහු අපේ නමට මාරු කරනවා!
+            targetNode.textContent = correctName;
+        }
     };
+
+    // අපේ 'මුරකරුවා' හෙවත් MutationObserver එක හදනවා
+    const observer = new MutationObserver(callback);
+
+    // මුරකරුවට කියනවා අර element එකේ වෙනස්කම් දිහා බලාගෙන ඉන්න කියලා
+    observer.observe(targetNode, { childList: true });
 </script>
 
 </html>
