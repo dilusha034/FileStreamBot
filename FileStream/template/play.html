@@ -1,18 +1,15 @@
 <!-- (මෙතන සිට Copy කරන්න) -->
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="si">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POP Tv One | {{file_name}}</title>
     <link rel="icon" href="https://raw.githubusercontent.com/dilusha034/FileStreamBot/main/photo_2025-09-24_00-54-09.jpg?v=2" type="image/x-icon">
-    <link rel="shortcut icon" href="https://raw.githubusercontent.com/dilusha034/FileStreamBot/main/photo_2025-09-24_00-54-09.jpg?v=2" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/proavipatil/data@main/fs/src/plyr.css">
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/proavipatil/data@main/fs/src/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@500;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
     <nav>
         <div class="nleft">
@@ -21,125 +18,68 @@
             </a>
         </div>
         <div class="nryt">
-            <a class="home-btn magnet" href="#main" onclick="toggleWidthnav(this)">මුල් පිටුව</a>
-            <a href="#abtus" class="about-btn magnet" onclick="toggleWidthnav(this)">අපි ගැන</a>
+            <a class="home-btn magnet" href="#main">මුල් පිටුව</a>
+            <a href="#abtus" class="about-btn magnet">අපි ගැන</a>
         </div>
     </nav>
-    <center>
-        <div class="about-nav">
-            <a href="#abtus" class="wlcm magnet" onclick="toggleWidth(this)">පිළිගැනීම</a>
-            <a href="#channels" class="abt-chnl magnet" onclick="toggleWidth(this)">අපේ චැනල්</a>
-            <a href="#contact" class="magnet contact-btn" onclick="toggleWidth(this)">සම්බන්ධ වන්න</a>
+    <div class="main" id="main">
+        <video id="player" playsinline controls width="100%"></video>
+        <div class="file-name">
+            <h4>ගොනුවේ නම: {{file_name}}</h4>
+            <h4>ගොනුවේ ප්‍රමාණය: {{file_size}}</h4>
         </div>
-    </center>
-
-   <div class="outer">
-        <div class="inner">
-            <div class="main" id="main">
-                <video id="player" playsinline controls width="100%"></video>
-                <div class="file-name">
-                    <h4 style="display: inline;">ගොනුවේ නම: </h4>
-                    <p style="display: inline;" id="myDiv">{{file_name}}</p><br>
-                    <h4 style="display: inline;">ගොනුවේ ප්‍රමාණය: </h4>
-                    <p style="display: inline;">{{file_size}}</p>
-                </div>
-                <div class="downloadBtn">
-                    <button class="magnet" onclick="streamDownload()">
-                        <img style="height: 30px;" src="https://i.ibb.co/RjzYttX/dl.png" alt="">බාගත කරන්න
-                    </button>
-                    <button class="magnet" onclick="copyStreamLink()">
-                        <img src="https://i.ibb.co/CM4Y586/link.png" alt="Copy Link">ලින්ක් එක කොපි කරන්න
-                    </button>
-                    <button class="magnet" onclick="vlc_player()">
-                        <img src="https://i.ibb.co/px6fQs1/vlc.png" alt="">VLC Player
-                    </button>
-                    <button class="magnet" onclick="mx_player()">
-                        <img src="https://i.ibb.co/41WvtQ3/mx.png" alt="">MX Player
-                    </button>
-                </div>
-            </div>
-            <div class="abt">
-                <div class="about">
-                    <div class="about-dets">
-                        <div class="abt-sec" id="abtus" style="padding: 160px 30px;">
-                            <h1 style="text-align: center;">POP TV ONE වෙත <Span>සාදරයෙන්</Span> පිළිගනිමු</h1>
-                            <p style="text-align: center; line-height: 2;word-spacing: 2px;  letter-spacing: 0.8px;">
-                                මෙය POP Tv One හි නිල චිත්‍රපට සහ කතා මාලා නැරඹීමේ පිටුවයි. ඔබට අවශ්‍ය නම් මෙතනින් කෙලින්ම නැරඹීමට හෝ බාගත කිරීමට හැකිය. 
-                                <br><br>ඔබ මෙම සේවාවට කැමති නම්, ඔබේ මිතුරන් සමගද බෙදාගැනීමට අමතක කරන්න එපා!
-                            </p>
-                        </div>
-                        <div class="abt-sec" id="channels">
-                            <h1>අපේ <span>TELEGRAM</span> චැනල්</h1>
-                            <div class="links chnl-link">
-                                <a class="magnet" href="https://t.me/POPTvOne">
-                                    <button>POP TV ONE (Movies & TV)</button>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="abt-sec" id="contact">
-                            <p style="text-align: center;">යම් ගැටළුවක් හෝ දෝෂයක් ඇත්නම්, පහතින් අපව අමතන්න</p>
-                            <div class="links contact">
-                                <a href="https://t.me/Mr_D_2000">
-                                    <button>සම්බන්ධ වන්න (Contact)</button>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <footer>
-            <center>
-                <div class="copyright">
-                    <h5 class="text-center">Copyright © 2025 <a href="https://t.me/POPTvOne"><span
-                                style="font-weight: 700;">POP Tv One</span></a>. All
-                        Rights Reserved.</h5>
-                </div>
-            </center>
-        </footer>
+        <!-- නැතිවුණු Buttons ටික නැවතත් මෙතනට දාමු (ඒවාට අදාළ script එකත් එක්කම) -->
     </div>
+    <!-- අනෙකුත් HTML කොටස් (About, Channels, etc.) මෙතනට දාන්න පුළුවන් -->
 </body>
 
-<script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 
-<!-- === මෙන්න අපේ අලුත්ම, බලවත්ම Player Script එක === -->
+<!-- === මෙන්න අපේ අලුත්ම, සුපිරිම බුද්ධිමත් Player Script එක === -->
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const player = new Plyr('#player');
+document.addEventListener('DOMContentLoaded', async () => {
+    const player = new Plyr('#player', { captions: { active: true, update: true, language: 'auto' } });
     const fileName = "{{file_name}}";
     const fileUrl = "{{file_url}}";
+    const dbId = fileUrl.split('/').pop();
 
     const sources = {
         type: 'video',
-        sources: [
-            {
-                src: fileUrl,
-                type: 'video/mp4',
-            },
-        ],
+        title: fileName,
+        sources: [{ src: fileUrl, type: 'video/mp4' }],
+        tracks: []
     };
 
-    // MKV file එකක් නම් පමණක් subtitle track එක එකතු කරනවා
+    // MKV file එකක් නම් පමණක් server එකෙන් subtitle තොරතුරු ඉල්ලනවා
     if (fileName.toLowerCase().endsWith('.mkv')) {
-        sources.tracks = [
-            {
-                kind: 'subtitles',
-                label: 'සිංහල',
-                srclang: 'si',
-                // මෙන්න අර අලුත් subtitle route එකට call කරන තැන
-                src: fileUrl.replace('/dl/', '/subtitle/'),
-                default: true,
+        try {
+            // 1. මුලින්ම server එකෙන් මේ වීඩියෝ එකේ තියෙන subtitles මොනවද කියලා අහනවා
+            const response = await fetch(`/subtitles/info/${dbId}`);
+            if (response.ok) {
+                const subtitles = await response.json();
+                
+                // 2. ලැබෙන list එක অনুযায়ী player එකට tracks එකතු කරනවා
+                subtitles.forEach((sub, i) => {
+                    sources.tracks.push({
+                        kind: 'subtitles',
+                        label: sub.title || sub.lang,
+                        srclang: sub.lang.slice(0, 2),
+                        // 3. User select කළාම අදාළ track එක ඉල්ලන්න URL එක හදනවා
+                        src: `/subtitle/${dbId}/${sub.index}`,
+                        default: i === 0 // පළවෙනි එක default විදිහට on කරනවා
+                    });
+                });
             }
-        ];
+        } catch (error) {
+            console.error("Subtitle තොරතුරු ලබාගැනීමට නොහැකි විය:", error);
+        }
     }
     
     player.source = sources;
 });
 </script>
 
-<script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
-
-<!-- === Title එක හංගලා පෙන්නන අපේ script එක === -->
+<!-- Title එක හංගලා පෙන්නන අපේ script එක (මේක අන්තිමටම තියන්න) -->
 <script>
     window.addEventListener('load', function() {
         const heading = document.getElementById('heading');
