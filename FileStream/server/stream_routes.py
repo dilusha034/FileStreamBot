@@ -187,7 +187,7 @@ async def media_streamer(request: web.Request, db_id: str):
         },
     )
 
-# --- 5. උපසිරැසි තොරතුරු ලබා දෙන නව Route එක ---
+# --- 5. උපසිරැසි තොරතුරු ලබා දෙන, වැඩි දියුණු කළ සහ ස්ථාවර නව Route එක ---
 @routes.get("/info/{path}")
 async def get_media_info(request: web.Request):
     try:
@@ -195,45 +195,66 @@ async def get_media_info(request: web.Request):
         
         index = min(work_loads, key=work_loads.get)
         faster_client = multi_clients[index]
-        
-        # අපිට download link එකක් අවශ්‍ය වෙනවා ffprobe එකට දෙන්න
-        # මෙය තාවකාලික link එකක් නිසා ඉක්මනින් භාවිතා කල යුතුයි
-        temp_link = await faster_client.get_download_link(db_id)
-        
+
+        # ByteStreamer object එක ලබාගැනීම
+        if faster_client in class_cache:
+            tg_connect = class_cache[faster_client]
+        else:
+            tg_connect = utils.ByteStreamer(faster_client)
+            class_cache[faster_client] = tg_connect
+            
+        file_id = await tg_connect.get_file_properties(db_id, multi_clients)
+
         command = [
             'ffprobe', '-v', 'quiet', '-print_format', 'json',
-            '-show_streams', '-select_streams', 's', temp_link
+            '-show_streams', '-select_streams', 's', '-' # '-' මගින් stdin වෙතින් input බලාපොරොත්තු වෙනවා
         ]
         
         process = await asyncio.create_subprocess_exec(
             *command,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
         
+        # ffprobe එකට ගොනුවේ මුල් කොටස පමණක් pipe කිරීම (සාමාන්‍යයෙන් 2MB-5MB ප්‍රමාණවත්)
+        # සම්පූර්ණ ගොනුවම download කිරීම අවශ්‍ය නැහැ
+        chunk_size = 1024 * 1024 * 5 # 5MB
+        try:
+            async for chunk in tg_connect.yield_file(file_id, index, 0, 0, chunk_size, 1, chunk_size):
+                if process.stdin.is_closing():
+                    break
+                process.stdin.write(chunk)
+                await process.stdin.drain()
+        except (ConnectionResetError, asyncio.CancelledError):
+            pass
+        finally:
+            if not process.stdin.is_closing():
+                process.stdin.close()
+
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            logging.error(f"ffprobe error: {stderr.decode()}")
-            raise web.HTTPInternalServerError(text="Failed to probe media file.")
+            logging.error(f"ffprobe error: {stderr.decode().strip()}")
+            return web.json_response([], status=500) # දෝෂයක් ඇත්නම් හිස් list එකක් යැවීම
             
-        # ffprobe ප්‍රතිදානය JSON ලෙස සකසා, අවශ්‍ය තොරතුරු පමණක් වෙන් කරගැනීම
         subtitle_streams = []
         data = json.loads(stdout)
         if 'streams' in data:
             for stream in data['streams']:
-                lang = stream.get('tags', {}).get('language', 'unknown')
-                title = stream.get('tags', {}).get('title', 'Subtitle')
+                lang = stream.get('tags', {}).get('language', 'und') # 'und' for undefined
+                title = stream.get('tags', {}).get('title', f"Subtitle Track {stream['index']}")
                 subtitle_streams.append({
-                    'index': stream['index'],
+                    'index': stream['index'], # ffprobe stream index එක
                     'language': lang,
-                    'title': f"{title} ({lang})"
+                    'title': f"{title.strip()} ({lang})"
                 })
-                
+        
         return web.json_response(subtitle_streams)
 
     except Exception as e:
         logging.error(f"Error in get_media_info: {e}")
+        traceback.print_exc()
         return web.json_response([], status=500)
 
 # --- 6. තෝරාගත් උපසිරැසිය Stream කරන නව Route එක ---
