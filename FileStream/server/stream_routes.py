@@ -1,5 +1,6 @@
 import time
 import math
+import json
 import logging
 import mimetypes
 import traceback
@@ -185,3 +186,96 @@ async def media_streamer(request: web.Request, db_id: str):
             "Accept-Ranges": "bytes",
         },
     )
+
+# --- 5. උපසිරැසි තොරතුරු ලබා දෙන නව Route එක ---
+@routes.get("/info/{path}")
+async def get_media_info(request: web.Request):
+    try:
+        db_id = request.match_info['path']
+        
+        index = min(work_loads, key=work_loads.get)
+        faster_client = multi_clients[index]
+        
+        # අපිට download link එකක් අවශ්‍ය වෙනවා ffprobe එකට දෙන්න
+        # මෙය තාවකාලික link එකක් නිසා ඉක්මනින් භාවිතා කල යුතුයි
+        temp_link = await faster_client.get_download_link(db_id)
+        
+        command = [
+            'ffprobe', '-v', 'quiet', '-print_format', 'json',
+            '-show_streams', '-select_streams', 's', temp_link
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            logging.error(f"ffprobe error: {stderr.decode()}")
+            raise web.HTTPInternalServerError(text="Failed to probe media file.")
+            
+        # ffprobe ප්‍රතිදානය JSON ලෙස සකසා, අවශ්‍ය තොරතුරු පමණක් වෙන් කරගැනීම
+        subtitle_streams = []
+        data = json.loads(stdout)
+        if 'streams' in data:
+            for stream in data['streams']:
+                lang = stream.get('tags', {}).get('language', 'unknown')
+                title = stream.get('tags', {}).get('title', 'Subtitle')
+                subtitle_streams.append({
+                    'index': stream['index'],
+                    'language': lang,
+                    'title': f"{title} ({lang})"
+                })
+                
+        return web.json_response(subtitle_streams)
+
+    except Exception as e:
+        logging.error(f"Error in get_media_info: {e}")
+        return web.json_response([], status=500)
+
+# --- 6. තෝරාගත් උපසිරැසිය Stream කරන නව Route එක ---
+@routes.get("/subtitle/{path}/{index}")
+async def stream_subtitle(request: web.Request):
+    try:
+        db_id = request.match_info['path']
+        stream_index = request.match_info['index']
+        
+        index = min(work_loads, key=work_loads.get)
+        faster_client = multi_clients[index]
+        
+        temp_link = await faster_client.get_download_link(db_id)
+        
+        command = [
+            'ffmpeg', '-i', temp_link, '-map', f'0:{stream_index}',
+            '-f', 'webvtt', '-'
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        response = web.StreamResponse(headers={'Content-Type': 'text/vtt'})
+        await response.prepare(request)
+        
+        try:
+            while not process.stdout.at_eof():
+                chunk = await process.stdout.read(4096)
+                if not chunk:
+                    break
+                await response.write(chunk)
+            await response.write_eof()
+            return response
+        except asyncio.CancelledError:
+            process.kill()
+            return response
+        finally:
+            await process.wait()
+
+    except Exception as e:
+        logging.error(f"Error in stream_subtitle: {e}")
+        raise web.HTTPInternalServerError(text="Failed to stream subtitle.")
