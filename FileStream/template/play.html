@@ -109,50 +109,50 @@
 <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 
 <!-- =================================================================================== -->
-<!-- === මෙන්න අපේ අලුත් සහ සියල්ල ඇතුලත් JavaScript කේතය === -->
+<!-- === ඔබගේ පැරණි script කොටස වෙනුවට මෙය සම්පූර්ණයෙන්ම යොදන්න === -->
 <!-- =================================================================================== -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    const videoElement = document.getElementById('player');
-    const path = window.location.pathname.split('/').pop(); // URL එකෙන් file id එක ලබාගැනීම
-    let player; // player variable එක මෙතන declare කරනවා
+    // --- 1. අපට අවශ්‍ය variables මෙතන අර්ථ දක්වනවා ---
+    const path = window.location.pathname.split('/').pop();
+    const subtitleUrl = `/subtitle/${path}`; // අපේ backend subtitle route එක
+    let player; // player object එකට global scope එකක් දෙනවා
 
-    // --- පියවර 1: MKV ගොනුවේ ඇති උපසිරැසි මොනවාදැයි server එකෙන් අසා දැනගැනීම ---
-    fetch(`/info/${path}`)
+    // --- 2. පිටුව load වූ විගස, උපසිරැසි තිබේදැයි backend එකෙන් අසනවා ---
+    fetch(subtitleUrl)
         .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
+            // උපසිරැසි ගොනුවක් තිබේ නම් (status 200), player එකට track එකක් සූදානම් කරනවා
+            if (response.ok) {
+                const track = [{
+                    kind: 'subtitles',
+                    label: 'Subtitle', // ඔබට කැමති නමක් දෙන්න
+                    srcLang: 'si',     // භාෂා කේතය
+                    src: subtitleUrl,
+                    default: true,
+                }];
+                initializePlayer(track); // tracks සමඟ player එක හදනවා
+            } else {
+                // උපසිරැසි නොමැති නම් (status 404), player එක tracks නොමැතිව හදනවා
+                console.log("මෙම ගොනුවේ උපසිරැසි සොයාගත නොහැකි විය.");
+                initializePlayer([]);
             }
-            return response.json();
-        })
-        .then(subtitles => {
-            // උපසිරැසි list එකෙන් player එකට අවශ්‍ය tracks නිර්මාණය කිරීම
-            const tracks = subtitles.map(sub => ({
-                kind: 'subtitles',
-                label: sub.title, // උදා: English (eng)
-                srcLang: sub.language, // උදා: eng
-                src: `/subtitle/${path}/${sub.index}` // අපේ subtitle stream කරන URL එක
-            }));
-
-            // Player එක initialize කිරීම
-            initializePlayer(tracks);
         })
         .catch(error => {
-            console.error('උපසිරැසි තොරතුරු ලබාගැනීමේදී දෝෂයක් ඇතිවිය:', error);
-            // උපසිරැසි නැතත්, player එක initialize කිරීම
-            initializePlayer([]); 
+            // යම් දෝෂයක් ඇති වුවහොත්, player එක tracks නොමැතිව හදනවා
+            console.error('උපසිරැසි ලබාගැනීමේදී දෝෂයක්:', error);
+            initializePlayer([]);
         });
 
 
-    // --- පියවර 2: Plyr Player එක සියළුම settings සමඟ නිර්මාණය කිරීමේ function එක ---
+    // --- 3. ඔබගේ සම්පූර්ණ player කේතය, function එකක් තුලට දමා ඇත ---
+    // මෙම function එකට උපසිරැසි tracks list එකක් ලබා දෙනවා
     function initializePlayer(subtitleTracks) {
+        
+        // --- ඔබගේ මුල් player initialization කේතය ---
         player = new Plyr('#player', {
-            captions: { active: true, update: true, language: 'auto' }, // Captions enable කිරීම
-            settings: ['captions', 'quality', 'speed', 'loop'], // Settings මෙනුව
-            fullscreen: { enabled: true, fallback: true, iosNative: false },
-            // Video එකේ source එක සහ අප ලබාගත් tracks මෙතනින් player එකට දෙනවා
-            // මේ ක්‍රමය මගින් player එකට tracks හරියටම load වෙනවා
+            // --- මා විසින් එක් කළ එකම අමතර කොටස ---
+            // Player එකට source සහ tracks මෙතනින් ලබා දෙනවා
             source: {
                 type: 'video',
                 sources: [{
@@ -160,11 +160,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'video/mp4'
                 }],
                 tracks: subtitleTracks
-            }
+            },
+            // --- ඔබගේ පැරණි settings එලෙසම ඇත ---
+            captions: { active: true, update: true, language: 'auto' },
+            settings: ['captions', 'quality', 'speed', 'loop'],
+            fullscreen: { enabled: true, fallback: true, iosNative: false },
         });
 
-        // --- පියවර 3: ඔබගේ පරණ Animation සහ Double-tap කේතය මෙතනට එක් කිරීම ---
-        // (කිසිදු වෙනසක් නොමැතිව)
+        // --- ඔබගේ සියළුම custom features ඇති `player.on('ready', ...)` කොටස ---
+        // --- මෙහි කිසිදු වෙනසක් කර නැත! ---
         player.on('ready', (event) => {
             const playerContainer = player.elements.container;
             
@@ -234,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- ඔබගේ අනෙකුත් functions (බාගත කිරීම, link copy කිරීම, ආදිය) ---
+// --- මේවායේ කිසිදු වෙනසක් කර නැත! ---
 function streamDownload() {
     window.open(document.getElementById("player").src)
 }
