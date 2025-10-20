@@ -187,7 +187,7 @@ async def media_streamer(request: web.Request, db_id: str):
         },
     )
 
-# --- 5. උපසිරැසි තොරතුරු ලබා දෙන, වැඩි දියුණු කළ සහ ස්ථාවර නව Route එක ---
+# --- 5. උපසිරැසි තොරතුරු ලබා දෙන, අවසාන සහ නිවැරදි කරන ලද Route එක ---
 @routes.get("/info/{path}")
 async def get_media_info(request: web.Request):
     try:
@@ -195,65 +195,61 @@ async def get_media_info(request: web.Request):
         
         index = min(work_loads, key=work_loads.get)
         faster_client = multi_clients[index]
+        
+        # ffprobe සඳහා තාවකාලික download link එකක් ලබා ගැනීම
+        # තොරතුරු ලබාගැනීමට ගතවන්නේ සුළු මොහොතක් නිසා මෙය වඩාත් කාර්යක්ෂමයි
+        file_id = await faster_client.get_file_id_from_db_id(db_id, multi_clients) # file_id ලබාගැනීමට නිවැරදි ක්‍රමය
+        if not file_id:
+             raise FIleNotFound
 
-        # ByteStreamer object එක ලබාගැනීම
-        if faster_client in class_cache:
-            tg_connect = class_cache[faster_client]
-        else:
-            tg_connect = utils.ByteStreamer(faster_client)
-            class_cache[faster_client] = tg_connect
-            
-        file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-
+        temp_link = await faster_client.get_download_link(file_id)
+        
         command = [
-            'ffprobe', '-v', 'quiet', '-print_format', 'json',
-            '-show_streams', '-select_streams', 's', '-' # '-' මගින් stdin වෙතින් input බලාපොරොත්තු වෙනවා
+            'ffprobe',
+            '-v', 'error',
+            '-print_format', 'json',
+            '-show_streams',
+            '-select_streams', 's',
+            temp_link # කෙලින්ම URL එක ffprobe වෙත ලබා දීම
         ]
         
         process = await asyncio.create_subprocess_exec(
             *command,
-            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
         
-        # ffprobe එකට ගොනුවේ මුල් කොටස පමණක් pipe කිරීම (සාමාන්‍යයෙන් 2MB-5MB ප්‍රමාණවත්)
-        # සම්පූර්ණ ගොනුවම download කිරීම අවශ්‍ය නැහැ
-        chunk_size = 1024 * 1024 * 5 # 5MB
-        try:
-            async for chunk in tg_connect.yield_file(file_id, index, 0, 0, chunk_size, 1, chunk_size):
-                if process.stdin.is_closing():
-                    break
-                process.stdin.write(chunk)
-                await process.stdin.drain()
-        except (ConnectionResetError, asyncio.CancelledError):
-            pass
-        finally:
-            if not process.stdin.is_closing():
-                process.stdin.close()
-
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            logging.error(f"ffprobe error: {stderr.decode().strip()}")
-            return web.json_response([], status=500) # දෝෂයක් ඇත්නම් හිස් list එකක් යැවීම
+            logging.error(f"ffprobe දෝෂය: {stderr.decode().strip()}")
+            return web.json_response([], status=500)
             
         subtitle_streams = []
         data = json.loads(stdout)
+        
         if 'streams' in data:
             for stream in data['streams']:
-                lang = stream.get('tags', {}).get('language', 'und') # 'und' for undefined
-                title = stream.get('tags', {}).get('title', f"Subtitle Track {stream['index']}")
+                # සමහර විට language tag එක 'tags' යටතේ නොතිබිය හැක
+                lang = stream.get('tags', {}).get('language', 'und') # 'und' = undefined
+                title = stream.get('tags', {}).get('title', f"Track {stream['index']}")
+                
+                # උපසිරැසි stream එකේ index අංකය නිවැරදිව ලබාගැනීම
+                # ffmpeg සඳහා අවශ්‍ය වන්නේ stream index එකයි.
+                subtitle_stream_index = stream['index']
+
                 subtitle_streams.append({
-                    'index': stream['index'], # ffprobe stream index එක
+                    'index': subtitle_stream_index, 
                     'language': lang,
                     'title': f"{title.strip()} ({lang})"
                 })
         
         return web.json_response(subtitle_streams)
 
+    except FIleNotFound:
+        raise web.HTTPNotFound(text="ගොනුව සොයාගත නොහැක")
     except Exception as e:
-        logging.error(f"Error in get_media_info: {e}")
+        logging.error(f"get_media_info හි දෝෂයක්: {e}")
         traceback.print_exc()
         return web.json_response([], status=500)
 
