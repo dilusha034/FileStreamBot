@@ -24,7 +24,7 @@
         <div class="nleft">
             <a href="#">
                 <!-- 3. Title එක වෙනස් කළා -->
-                <h3 id="heading" style="z-index: 100;" class="magnet title">POP Tv One</h3>
+                <h3 id="heading" style="z-index: 100; visibility: hidden;" class="magnet title">POP Tv One</h3>
             </a>
         </div>
         <div class="nryt">
@@ -368,26 +368,17 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
     <script>
-    // අපි මුර කරන්න යන element එක (අපේ නම තියෙන තැන)
-    const targetNode = document.getElementById('heading');
-
-    // අපි තහවුරු කරන්න යන නිවැරදි නම
-    const correctName = 'POP Tv One';
-
-    // වෙනසක් අඳුනගත්තම මොකද කරන්නේ කියන එක
-    const callback = function(mutationsList, observer) {
-        // අර script එක නම වෙනස් කළොත්...
-        if (targetNode.textContent !== correctName) {
-            // අපි ඒ ගමන්ම ආපහු අපේ නමට මාරු කරනවා!
-            targetNode.textContent = correctName;
+    // පිටුවේ සියලුම දේ (படங்கள், scripts) load වූ පසු මෙය ක්‍රියාත්මක වේ
+    window.addEventListener('load', function() {
+        const heading = document.getElementById('heading');
+        if (heading) {
+            // 1. අපේ නිවැරදි නම දානවා
+            heading.textContent = 'POP Tv One';
+            
+            // 2. දැන් ඒක පෙන්වනවා
+            heading.style.visibility = 'visible';
         }
-    };
-
-    // අපේ 'මුරකරුවා' හෙවත් MutationObserver එක හදනවා
-    const observer = new MutationObserver(callback);
-
-    // මුරකරුවට කියනවා අර element එකේ වෙනස්කම් දිහා බලාගෙන ඉන්න කියලා
-    observer.observe(targetNode, { childList: true });
+    });
 </script>
 
 </html>
