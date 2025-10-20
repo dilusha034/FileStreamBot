@@ -187,112 +187,61 @@ async def media_streamer(request: web.Request, db_id: str):
         },
     )
 
-# --- 5. උපසිරැසි තොරතුරු ලබා දෙන, අවසාන සහ නිවැරදි කරන ලද Route එක ---
-@routes.get("/info/{path}")
-async def get_media_info(request: web.Request):
+# --- 5 උපසිරැසි සඳහා වන අවසාන සහ නිවැරදි කරන ලද Route එක ---
+@routes.get("/subtitle/{path}")
+async def get_subtitle_as_vtt(request: web.Request):
     try:
         db_id = request.match_info['path']
         
         index = min(work_loads, key=work_loads.get)
         faster_client = multi_clients[index]
-        
-        # ffprobe සඳහා තාවකාලික download link එකක් ලබා ගැනීම
-        # තොරතුරු ලබාගැනීමට ගතවන්නේ සුළු මොහොතක් නිසා මෙය වඩාත් කාර්යක්ෂමයි
-        file_id = await faster_client.get_file_id_from_db_id(db_id, multi_clients) # file_id ලබාගැනීමට නිවැරදි ක්‍රමය
-        if not file_id:
-             raise FIleNotFound
 
-        temp_link = await faster_client.get_download_link(file_id)
-        
-        command = [
-            'ffprobe',
-            '-v', 'error',
-            '-print_format', 'json',
-            '-show_streams',
-            '-select_streams', 's',
-            temp_link # කෙලින්ම URL එක ffprobe වෙත ලබා දීම
-        ]
-        
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            logging.error(f"ffprobe දෝෂය: {stderr.decode().strip()}")
-            return web.json_response([], status=500)
+        if faster_client in class_cache:
+            tg_connect = class_cache[faster_client]
+        else:
+            tg_connect = utils.ByteStreamer(faster_client)
+            class_cache[faster_client] = tg_connect
             
-        subtitle_streams = []
-        data = json.loads(stdout)
-        
-        if 'streams' in data:
-            for stream in data['streams']:
-                # සමහර විට language tag එක 'tags' යටතේ නොතිබිය හැක
-                lang = stream.get('tags', {}).get('language', 'und') # 'und' = undefined
-                title = stream.get('tags', {}).get('title', f"Track {stream['index']}")
-                
-                # උපසිරැසි stream එකේ index අංකය නිවැරදිව ලබාගැනීම
-                # ffmpeg සඳහා අවශ්‍ය වන්නේ stream index එකයි.
-                subtitle_stream_index = stream['index']
+        file_id = await tg_connect.get_file_properties(db_id, multi_clients)
 
-                subtitle_streams.append({
-                    'index': subtitle_stream_index, 
-                    'language': lang,
-                    'title': f"{title.strip()} ({lang})"
-                })
-        
-        return web.json_response(subtitle_streams)
-
-    except FIleNotFound:
-        raise web.HTTPNotFound(text="ගොනුව සොයාගත නොහැක")
-    except Exception as e:
-        logging.error(f"get_media_info හි දෝෂයක්: {e}")
-        traceback.print_exc()
-        return web.json_response([], status=500)
-
-# --- 6. තෝරාගත් උපසිරැසිය Stream කරන නව Route එක ---
-@routes.get("/subtitle/{path}/{index}")
-async def stream_subtitle(request: web.Request):
-    try:
-        db_id = request.match_info['path']
-        stream_index = request.match_info['index']
-        
-        index = min(work_loads, key=work_loads.get)
-        faster_client = multi_clients[index]
-        
-        temp_link = await faster_client.get_download_link(db_id)
-        
+        # ffmpeg command එක: stdin වෙතින් input ලබාගෙන, 
+        # පළමු උපසිරැසි stream එක webvtt format එකට convert කර stdout වෙත ලබා දෙන්න.
         command = [
-            'ffmpeg', '-i', temp_link, '-map', f'0:{stream_index}',
-            '-f', 'webvtt', '-'
+            'ffmpeg', '-i', '-', '-map', '0:s:0', '-f', 'webvtt', '-'
         ]
         
         process = await asyncio.create_subprocess_exec(
             *command,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE # දෝෂ log කිරීමට
         )
         
-        response = web.StreamResponse(headers={'Content-Type': 'text/vtt'})
-        await response.prepare(request)
+        # ffmpeg ක්‍රියාවලියට වීඩියෝ දත්ත stream කිරීම සහ ප්‍රතිදානය ලබාගැනීම
+        # මෙය සම්පූර්ණ ගොනුවම download නොකර සිදු කරයි
+        stdout, stderr = await process.communicate(
+            input=b''.join([
+                chunk async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024)
+            ])
+        )
+
+        if process.returncode != 0:
+            # උපසිරැසි නොමැති වීම දෝෂයක් නොවේ, එය സാധാരണ දෙයක්
+            if b"Subtitle stream not found" in stderr:
+                logging.info(f"'{utils.get_name(file_id)}' ගොනුවේ උපසිරැසි නොමැත.")
+                return web.Response(status=404, text="No Subtitles Found")
+            else:
+                logging.error(f"ffmpeg දෝෂය: {stderr.decode().strip()}")
+                raise web.HTTPInternalServerError()
         
-        try:
-            while not process.stdout.at_eof():
-                chunk = await process.stdout.read(4096)
-                if not chunk:
-                    break
-                await response.write(chunk)
-            await response.write_eof()
-            return response
-        except asyncio.CancelledError:
-            process.kill()
-            return response
-        finally:
-            await process.wait()
+        # සාර්ථකව උපසිරැසි extract කල හොත්, VTT දත්ත response එක ලෙස යැවීම
+        return web.Response(
+            body=stdout,
+            content_type="text/vtt",
+            charset="utf-8"
+        )
 
     except Exception as e:
-        logging.error(f"Error in stream_subtitle: {e}")
-        raise web.HTTPInternalServerError(text="Failed to stream subtitle.")
+        logging.error(f"get_subtitle_as_vtt හි දෝෂයක්: {e}")
+        traceback.print_exc()
+        return web.Response(status=500)
