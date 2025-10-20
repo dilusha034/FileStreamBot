@@ -136,44 +136,46 @@
                 const fileUrl = "{{file_url}}";
                 // === Operation Treasure Hunt: Subtitle Injection (Corrected for Commando Code) ===
 
+// === Operation Treasure Hunt - Final Version ===
+
 const sources = {
     type: 'video',
     title: fileName,
     sources: [{ src: fileUrl }],
-    tracks: [] // මුලින්ම හිස් track list එකක් හදනවා
+    tracks: []
 };
 
-// MKV file එකක් නම්, server එකෙන් subtitle list එක ඉල්ලලා player එකට දෙනවා
-if (fileName.toLowerCase().endsWith('.mkv')) {
-    console.log("Treasure Hunt: MKV detected, asking server for map...");
-    
-    fetch(fileUrl.replace('/dl/', '/subtitles/list/'))
-        .then(response => response.json())
-        .then(subtitleList => {
+// Player එකේ source එක දාන්න කලින්, subtitle හොයලා ඉවර වෙනකල් බලන් ඉන්නවා
+async function setupPlayerSource() {
+    if (fileName.toLowerCase().endsWith('.mkv')) {
+        console.log("Treasure Hunt: MKV detected, asking server for map...");
+        try {
+            const response = await fetch(fileUrl.replace('/dl/', '/subtitles/list/'));
+            const subtitleList = await response.json();
             console.log("Treasure Hunt: Map received!", subtitleList);
+
             if (subtitleList && subtitleList.length > 0) {
-                
-                const newTracks = subtitleList.map(sub => ({
+                sources.tracks = subtitleList.map(sub => ({
                     kind: 'subtitles',
                     label: sub.lang ? sub.lang.toUpperCase() : `Track ${sub.map_index + 1}`,
                     srclang: sub.lang ? sub.lang.slice(0, 2) : `tr${sub.map_index}`,
                     src: fileUrl.replace('/dl/', `/subtitle/${sub.map_index}`),
                 }));
-                
-                // Player එකට අලුත් උපසිරැසි ටික දෙනවා
-                sources.tracks = newTracks;
+                // පළවෙනි එක default විදිහට on කරන්න player එකට කියමු
+                if(sources.tracks.length > 0) sources.tracks[0].default = true;
             }
-        })
-        .catch(error => console.error("Treasure Hunt Failed:", error))
-        .finally(() => {
-            // නිධානය හම්බවුණත්, නැතත්, Error එකක් ආවත්, අවසානයේදී player එකේ source එක දානවා
-            player.source = sources;
-        });
-} else {
-    // MKV නෙවෙයි නම්, නිකම්ම play කරනවා
+        } catch (error) {
+            console.error("Treasure Hunt Failed:", error);
+        }
+    }
+    // Subtitle හෙවීමෙන් පස්සේ, අවසානයේදී player එකේ source එක දානවා
     player.source = sources;
 }
-                // === Precision Strike: Restoring All Player Features ===
+
+// Player එක හදලා ඉවර වුණාම, අපේ source setup function එක run කරනවා
+setupPlayerSource();
+
+// === End of Final Version ===
 
 // 1. Auto-Rotation Feature (Restored)
 player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
