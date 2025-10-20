@@ -152,63 +152,54 @@
                 player.source = sources;
                 // === Precision Strike: Restoring All Player Features ===
 
-// 1. Auto-Rotation Feature
+// 1. Auto-Rotation Feature (Restored)
 player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
 player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
 
-// 2. Double-tap to Skip & other Mobile Gestures
+// 2. Advanced Touch Controls for Mobile (Double-tap Skip & Single-tap Play/Pause)
 const playerContainer = player.elements.container;
 const rewindIndicator = document.createElement('div');
 rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
-rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
+rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10s</span>`;
 playerContainer.appendChild(rewindIndicator);
 const forwardIndicator = document.createElement('div');
 forwardIndicator.className = 'skip-indicator skip-indicator-forward';
-forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
+forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10s</span>`;
 playerContainer.appendChild(forwardIndicator);
 
 let tapTimeout = null;
 let lastTapTime = 0;
-const DOUBLE_TAP_DELAY = 300;
+const DOUBLE_TAP_DELAY = 300; // මිලි තත්පර 300ක් ඇතුළත tap දෙකක්
 
-// 2. Double-tap to Skip & other Mobile Gestures (FIXED)
-const playerContainer = player.elements.container;
-const rewindIndicator = document.createElement('div');
-rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
-rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
-playerContainer.appendChild(rewindIndicator);
-const forwardIndicator = document.createElement('div');
-forwardIndicator.className = 'skip-indicator skip-indicator-forward';
-forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
-playerContainer.appendChild(forwardIndicator);
-
-let tapTimeout = null;
-let lastTapTime = 0;
-const DOUBLE_TAP_DELAY = 300;
-
-playerContainer.addEventListener('click', (e) => {
-    // ප්ලේයරයේ control bar එක click කළොත්, අපේ කිසිම දෙයක් කරන්න එපා
+// අපි 'click' වෙනුවට mobile වලටම හදපු 'touchend' event එක පාවිච්චි කරනවා
+playerContainer.addEventListener('touchend', (e) => {
+    // ප්ලේයරයේ control bar එක touch කළොත්, අපේ කිසිම දෙයක් කරන්න එපා
     if (e.target.closest('.plyr__controls')) return;
+    
+    // Touch event එකක් නැත්නම් මුකුත් කරන්න එපා
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
 
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTapTime;
     clearTimeout(tapTimeout);
 
     if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
-        // --- මෙන්න අපේ නිවැරදි කිරීම! ---
+        // --- මෙන්න අපේ Medusa පහර! ---
         // මේ double tap එක ගැන වෙන කිසිම කෙනෙක්ට දැනගන්න ඉඩ තියන්න එපා!
+        e.preventDefault();
         e.stopPropagation(); 
         
         // Double Tap
         const rect = playerContainer.getBoundingClientRect();
-        const tapPositionX = e.clientX - rect.left;
+        const touchX = e.changedTouches[0].clientX;
+        const tapPositionX = touchX - rect.left;
 
-        if (tapPositionX < rect.width * 0.3) {
+        if (tapPositionX < rect.width * 0.35) {
             // වම් පැත්තට double tap - Rewind
             player.rewind(10);
             rewindIndicator.classList.add('visible');
             setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
-        } else if (tapPositionX > rect.width * 0.7) {
+        } else if (tapPositionX > rect.width * 0.65) {
             // දකුණු පැත්තට double tap - Forward
             player.forward(10);
             forwardIndicator.classList.add('visible');
@@ -228,7 +219,7 @@ playerContainer.addEventListener('click', (e) => {
     lastTapTime = currentTime;
 });
 
-// CSS for Skip Indicators
+// CSS for Skip Indicators (මේ ටික කලින් තිබ්බ නිසා වෙනසක් නෑ)
 const styles = `
     .skip-indicator {
         position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4);
@@ -245,7 +236,8 @@ const styleSheet = document.createElement("style");
 styleSheet.innerText = styles;
 document.head.appendChild(styleSheet);
 
-// === End of Feature Restoration ===
+// === End of Operation Medusa ===
+                
                 player.on('ready', () => {
                     if (fileName.toLowerCase().endsWith('.mkv')) {
                         player.toggleCaptions(true);
