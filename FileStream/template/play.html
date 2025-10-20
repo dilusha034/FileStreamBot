@@ -150,6 +150,82 @@
                     });
                 }
                 player.source = sources;
+                // === Precision Strike: Restoring All Player Features ===
+
+// 1. Auto-Rotation Feature
+player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
+player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
+
+// 2. Double-tap to Skip & other Mobile Gestures
+const playerContainer = player.elements.container;
+const rewindIndicator = document.createElement('div');
+rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
+rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10 Seconds</span>`;
+playerContainer.appendChild(rewindIndicator);
+const forwardIndicator = document.createElement('div');
+forwardIndicator.className = 'skip-indicator skip-indicator-forward';
+forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10 Seconds</span>`;
+playerContainer.appendChild(forwardIndicator);
+
+let tapTimeout = null;
+let lastTapTime = 0;
+const DOUBLE_TAP_DELAY = 300;
+
+playerContainer.addEventListener('click', (e) => {
+    if (e.target.closest('.plyr__controls')) return;
+
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTapTime;
+    clearTimeout(tapTimeout);
+
+    if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
+        // Double Tap
+        const rect = playerContainer.getBoundingClientRect();
+        const tapPositionX = e.clientX - rect.left;
+
+        if (tapPositionX < rect.width * 0.3) {
+            player.rewind(10);
+            rewindIndicator.classList.add('visible');
+            setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
+        } else if (tapPositionX > rect.width * 0.7) {
+            player.forward(10);
+            forwardIndicator.classList.add('visible');
+            setTimeout(() => forwardIndicator.classList.remove('visible'), 500);
+        } else {
+            player.fullscreen.toggle();
+        }
+        lastTapTime = 0;
+    } else {
+        // Single Tap
+        tapTimeout = setTimeout(() => {
+             if (!player.playing) {
+                player.play();
+            } else {
+                player.pause();
+            }
+        }, DOUBLE_TAP_DELAY);
+    }
+    lastTapTime = currentTime;
+});
+
+// CSS for Skip Indicators
+const styles = `
+    .skip-indicator {
+        position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4);
+        color: white; padding: 15px 25px; border-radius: 50px; font-family: 'Josefin Sans', sans-serif;
+        font-size: 1.2em; opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none;
+        display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+    .skip-indicator.visible { opacity: 1; }
+    .skip-indicator .arrows { font-size: 2.5em; line-height: 1; font-weight: bold; }
+    .skip-indicator-rewind { left: 10%; } .skip-indicator-forward { right: 10%; }
+`;
+const styleSheet = document.createElement("style");
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
+
+// === End of Feature Restoration ===
                 player.on('ready', () => {
                     if (fileName.toLowerCase().endsWith('.mkv')) {
                         player.toggleCaptions(true);
