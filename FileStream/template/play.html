@@ -125,7 +125,7 @@
 
 <!-- === Operation Final Victory: The Commando Code === -->
 <script>
-<!-- === Operation Final Victory: The Commando Code (Corrected) === -->
+<!-- === Operation Final Victory: The Commando Code (DEBUG VERSION) === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
@@ -201,11 +201,13 @@ function setupPlayerFeatures(player) {
 
 // === ප්‍රධාන Function එක: Player එක හදා, Subtitles Fetch කරන තැන ===
 async function initializePlayer() {
-    console.log("VICTORY: Player fortress captured! Executing our plan...");
+    console.log("DEBUG: 1. initializePlayer function එක ආරම්භ විය.");
     try {
         const videoElement = document.getElementById('player');
         const fileName = "{{file_name}}";
         const fileUrl = "{{file_url}}";
+        
+        console.log("DEBUG: 2. ගොනුවේ නම:", fileName);
 
         const sources = {
             type: 'video',
@@ -213,50 +215,53 @@ async function initializePlayer() {
             sources: [{ src: fileUrl, type: 'video/mp4' }],
             tracks: []
         };
-
-        // --- **නිවැරදි කිරීම 1: උපසිරැසි fetch කිරීමේ ක්‍රමය** ---
-        if (fileName.toLowerCase().endsWith('.mkv')) {
+        
+        console.log("DEBUG: 3. .mkv ෆයිල් එකක්දැයි පරීක්ෂා කිරීමට සූදානම්.");
+        if (fileName && fileName.toLowerCase().endsWith('.mkv')) {
+            console.log("DEBUG: 4. ఇది .mkv ගොනුවක්. උපසිරැසි ලබා ගැනීමට උත්සාහ කරයි.");
             try {
-                // URL එක වඩාත් ස්ථාවර ක්‍රමයකට සකස් කිරීම.
-                // වත්මන් URL එකේ ('/watch/') කොටස ('/subtitles/') ලෙස වෙනස් කරයි.
                 const subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
-                console.log("Fetching subtitles from:", subtitleListUrl);
+                console.log("DEBUG: 5. උපසිරැසි ඉල්ලන URL එක:", subtitleListUrl);
+                
                 const response = await fetch(subtitleListUrl);
+                console.log("DEBUG: 6. Server එකෙන් ප්‍රතිචාරය ලැබුණි. Status:", response.status);
                 
                 if (response.ok) {
                     const subtitleStreams = await response.json();
                     if (subtitleStreams && subtitleStreams.length > 0) {
-                        console.log(`Found ${subtitleStreams.length} subtitle tracks.`);
+                        console.log(`DEBUG: 7. උපසිරැසි ${subtitleStreams.length}ක් සොයා ගන්නා ලදී.`);
                         subtitleStreams.forEach((stream) => {
-                            // URL එක සෑදීම සඳහා නැවතත් `/watch/` යන්න `/subtitle/{stream_index}` ලෙස වෙනස් කරයි
                             const subtitleUrl = window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`);
                             const track = {
                                 kind: 'subtitles',
                                 label: stream.tags?.title || stream.tags?.language || `Subtitle ${stream.index}`,
                                 srclang: stream.tags?.language || `sub${stream.index}`,
                                 src: subtitleUrl,
-                                default: sources.tracks.length === 0 // පළමු එක default කරනවා
+                                default: sources.tracks.length === 0
                             };
                             sources.tracks.push(track);
                         });
+                    } else {
+                         console.log("DEBUG: 7. උපසිරැසි තිබුනත්, list එක හිස්.");
                     }
                 } else {
-                     console.error("Failed to fetch subtitles. Status:", response.status);
+                     console.error("DEBUG: 6. උපසිරැසි ලබා ගැනීමට නොහැකි විය. Server Error.");
                 }
             } catch (error) {
-                console.error("Could not fetch subtitles:", error);
+                console.error("DEBUG: 5. උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error);
             }
+        } else {
+            console.log("DEBUG: 4. මෙය .mkv ගොනුවක් නොවේ. උපසිරැසි ලබා නොගනී.");
         }
         
-        // --- **නිවැරදි කිරීම 2: Player එක initialize කිරීම** ---
-        // Player එක සාදන්නේ සියලු sources සහ tracks සූදානම් වූ පසුවයි.
+        console.log("DEBUG: 8. Player එක සෑදීමට සූදානම්.");
         const player = new Plyr(videoElement, {
              captions: { active: true, update: true, language: 'auto' }
         });
         
-        player.source = sources; // Player source එක update කරනවා
+        player.source = sources;
+        console.log("DEBUG: 9. Player source එක යාවත්කාලීන කරන ලදී.");
         
-        // Player එකට අමතර features ටික එකතු කිරීම
         setupPlayerFeatures(player);
 
         const heading = document.getElementById('heading');
@@ -264,20 +269,20 @@ async function initializePlayer() {
             heading.textContent = 'POP Tv One';
             heading.style.visibility = 'visible';
         }
+        console.log("DEBUG: 10. සියල්ල සාර්ථකව අවසන් විය.");
 
     } catch (error) {
-        console.error("Commando Code execution failed:", error);
+        console.error("CRITICAL ERROR: initializePlayer function එකේ දෝෂයක්:", error);
     }
 }
 
 // Player එක සහ Plyr ලයිබ්‍රරිය load වෙනකන් ඉඳලා අපේ ප්‍රධාන function එක run කරනවා
 const commandoInterval = setInterval(function() {
-    // --- **නිවැරදි කිරීම 3: Player එක තිබේදැයි බලන condition එක** ---
-    // `videoElement.plyr` පරීක්ෂා කිරීම ඉවත් කර ඇත.
     if (document.getElementById('player') && typeof Plyr !== 'undefined') {
         clearInterval(commandoInterval);
-        initializePlayer(); // අපේ ප්‍රධාන function එක call කරනවා
+        initializePlayer();
     }
 }, 100);
+</script>
 </script>
 </html>
