@@ -123,7 +123,7 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE ABSOLUTE FINAL CODE v3.0 === -->
+<!-- === Operation Final Victory: THE ABSOLUTE FINAL CODE v4.0 === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
@@ -203,7 +203,9 @@ async function initializePlayer() {
             return;
         }
         
-        const player = new Plyr(videoElement, {});
+        const player = new Plyr(videoElement, {
+            captions: { active: true, update: true }
+        });
         
         const sources = {
             type: 'video',
@@ -223,7 +225,7 @@ async function initializePlayer() {
                             sources.tracks.push({
                                 kind: 'subtitles',
                                 label: stream.tags?.title || `Track ${sources.tracks.length + 1}`,
-                                srclang: stream.tags?.language || 'en', // Always provide a valid language code
+                                srclang: stream.tags?.language || `en${sources.tracks.length}`, // Unique srclang
                                 src: window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`),
                                 default: sources.tracks.length === 0
                             });
@@ -244,7 +246,8 @@ async function initializePlayer() {
                 if (player.captions.tracks && player.captions.tracks.length > 0) {
                     console.log('Forcing captions ON and setting track.');
                     player.captions.enabled = true;
-                    player.currentTrack = 0; // Player එකට පළමු උපසිරැසිය ක්‍රියාත්මක කිරීමට අණ කිරීම
+                    // Player එකට පළමු උපසිරැසිය ක්‍රියාත්මක කිරීමට අණ කිරීම
+                    player.currentTrack = 0; 
                 }
             }, 100); 
         });
