@@ -123,15 +123,15 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE VICTORIOUS CODE === -->
+<!-- === Operation Final Victory: THE VICTORIOUS CODE v2.0 === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
-    // Player container එක තිබේදැයි පරීක්ෂා කිරීම
     if (!player || !player.elements || !player.elements.container) {
-        console.error("Plyr container not found. Skipping feature setup.");
+        console.error("Plyr container not found during setup. Aborting feature setup.");
         return;
     }
+    console.log("Player is ready. Setting up advanced features...");
 
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
     player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
@@ -161,7 +161,6 @@ function setupPlayerFeatures(player) {
         if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
             e.preventDefault();
             e.stopPropagation(); 
-            
             const rect = playerContainer.getBoundingClientRect();
             const touchX = e.changedTouches[0].clientX;
             const tapPositionX = touchX - rect.left;
@@ -179,21 +178,13 @@ function setupPlayerFeatures(player) {
             }
             lastTapTime = 0;
         } else {
-            tapTimeout = setTimeout(() => {
-                player.togglePlay();
-            }, DOUBLE_TAP_DELAY);
+            tapTimeout = setTimeout(() => { player.togglePlay(); }, DOUBLE_TAP_DELAY);
         }
         lastTapTime = currentTime;
     });
 
     const styles = `
-        .skip-indicator {
-            position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4);
-            color: white; padding: 15px 25px; border-radius: 50px; font-family: 'Josefin Sans', sans-serif;
-            font-size: 1.2em; opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none;
-            display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-        }
+        .skip-indicator { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4); color: white; padding: 15px 25px; border-radius: 50px; font-family: 'Josefin Sans', sans-serif; font-size: 1.2em; opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none; display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
         .skip-indicator.visible { opacity: 1; }
         .skip-indicator .arrows { font-size: 2.5em; line-height: 1; font-weight: bold; }
         .skip-indicator-rewind { left: 10%; } .skip-indicator-forward { right: 10%; }
@@ -226,40 +217,36 @@ async function initializePlayer() {
             try {
                 const subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
                 const response = await fetch(subtitleListUrl);
-                
                 if (response.ok) {
                     const subtitleStreams = await response.json();
+                    console.log('Server එකෙන් ලැබුණු උපසිරැසි දත්ත:', subtitleStreams); // වැදගත්ම log එක
                     if (subtitleStreams && subtitleStreams.length > 0) {
                         subtitleStreams.forEach((stream) => {
                             const subtitleUrl = window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`);
-                            const track = {
+                            sources.tracks.push({
                                 kind: 'subtitles',
                                 label: stream.tags?.title || stream.tags?.language || `Subtitle ${stream.index}`,
                                 srclang: stream.tags?.language || `sub${stream.index}`,
                                 src: subtitleUrl,
                                 default: sources.tracks.length === 0
-                            };
-                            sources.tracks.push(track);
+                            });
                         });
                     }
                 }
-            } catch (error) {
-                console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error);
-            }
+            } catch (error) { console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error); }
         }
         
         const player = new Plyr(videoElement, {
              captions: { active: true, update: true, language: 'auto' }
         });
         
-        player.source = sources;
-
         // --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
-        // Player එකට අමතර features ටික එකතු කිරීමට පෙර,
-        // Player එකට හරියට render වීමට පොඩි වෙලාවක් දීම.
-        setTimeout(() => {
+        // Player එක සම්පූර්ණයෙන්ම සූදානම් වූ පසු, අමතර features ටික එකතු කිරීම
+        player.on('ready', () => {
             setupPlayerFeatures(player);
-        }, 100); // මිලි තත්පර 100ක පොඩි පරක්කුවක්
+        });
+
+        player.source = sources;
 
         const heading = document.getElementById('heading');
         if (heading) {
@@ -267,12 +254,9 @@ async function initializePlayer() {
             heading.style.visibility = 'visible';
         }
 
-    } catch (error) {
-        console.error("initializePlayer function එකේ දෝෂයක්:", error);
-    }
+    } catch (error) { console.error("initializePlayer function එකේ දෝෂයක්:", error); }
 }
 
-// Player එක සහ Plyr ලයිබ්‍රරිය load වෙනකන් ඉඳලා අපේ ප්‍රධාන function එක run කරනවා
 const commandoInterval = setInterval(function() {
     if (document.getElementById('player') && typeof Plyr !== 'undefined') {
         clearInterval(commandoInterval);
