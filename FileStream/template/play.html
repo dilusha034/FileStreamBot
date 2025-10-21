@@ -123,7 +123,7 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: The Commando Code === -->
+<!-- === Operation Final Victory: THE VICTORIOUS CODE === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
@@ -132,6 +132,7 @@ function setupPlayerFeatures(player) {
         console.error("Plyr container not found. Skipping feature setup.");
         return;
     }
+
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
     player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
 
@@ -206,8 +207,6 @@ function setupPlayerFeatures(player) {
 async function initializePlayer() {
     try {
         const videoElement = document.getElementById('player');
-        
-        // **නිවැරදි කිරීම:** දත්ත, ආරක්ෂිත data-attributes වලින් ලබා ගැනීම
         const fileName = videoElement.getAttribute('data-filename');
         const fileUrl = videoElement.getAttribute('data-fileurl');
 
@@ -254,7 +253,13 @@ async function initializePlayer() {
         });
         
         player.source = sources;
-        setupPlayerFeatures(player);
+
+        // --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
+        // Player එකට අමතර features ටික එකතු කිරීමට පෙර,
+        // Player එකට හරියට render වීමට පොඩි වෙලාවක් දීම.
+        setTimeout(() => {
+            setupPlayerFeatures(player);
+        }, 100); // මිලි තත්පර 100ක පොඩි පරක්කුවක්
 
         const heading = document.getElementById('heading');
         if (heading) {
