@@ -125,133 +125,155 @@
 
 <!-- === Operation Final Victory: The Commando Code === -->
 <script>
-    const commandoInterval = setInterval(function() {
-        const videoElement = document.getElementById('player');
-        if (videoElement && typeof Plyr !== 'undefined' && videoElement.plyr) {
-            clearInterval(commandoInterval);
-            console.log("VICTORY: Player fortress captured! Executing our plan...");
+// === අලුත් Function එක: Subtitles Fetch කර Player එක හදන තැන ===
+async function fetchSubtitlesAndSetupPlayer() {
+    const videoElement = document.getElementById('player');
+    if (!videoElement || typeof Plyr === 'undefined') return;
+
+    console.log("VICTORY: Player fortress captured! Executing our plan...");
+    try {
+        const player = new Plyr(videoElement, {
+            // ඔබට අවශ්‍ය වෙනත් Plyr options මෙතනට දාන්න
+        });
+
+        const fileName = "{{file_name}}";
+        const fileUrl = "{{file_url}}";
+        const sources = {
+            type: 'video',
+            title: fileName,
+            sources: [{ src: fileUrl, type: 'video/mp4' }], // type එක දාන එක හොඳයි
+            tracks: [] // ආරම්භයේදී හිස් tracks array එකක්
+        };
+
+        // .mkv file එකක් නම් පමණක් subtitles fetch කරනවා
+        if (fileName.toLowerCase().endsWith('.mkv')) {
             try {
-                const player = videoElement.plyr;
-                const fileName = "{{file_name}}";
-                const fileUrl = "{{file_url}}";
-                const sources = {
-                    type: 'video',
-                    title: fileName,
-                    sources: [{ src: fileUrl }],
-                    tracks: []
-                };
-                if (fileName.toLowerCase().endsWith('.mkv')) {
-                    sources.tracks.push({
-                        kind: 'subtitles',
-                        label: 'සිංහල',
-                        srclang: 'si',
-                        src: fileUrl.replace('/dl/', '/subtitle/'),
-                        default: true,
-                    });
-                }
-                player.source = sources;
-                // === Precision Strike: Restoring All Player Features ===
-
-// 1. Auto-Rotation Feature (Restored)
-player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
-player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
-
-// 2. Advanced Touch Controls for Mobile (Double-tap Skip & Single-tap Play/Pause)
-const playerContainer = player.elements.container;
-const rewindIndicator = document.createElement('div');
-rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
-rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10s</span>`;
-playerContainer.appendChild(rewindIndicator);
-const forwardIndicator = document.createElement('div');
-forwardIndicator.className = 'skip-indicator skip-indicator-forward';
-forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10s</span>`;
-playerContainer.appendChild(forwardIndicator);
-
-let tapTimeout = null;
-let lastTapTime = 0;
-const DOUBLE_TAP_DELAY = 300; // මිලි තත්පර 300ක් ඇතුළත tap දෙකක්
-
-// අපි 'click' වෙනුවට mobile වලටම හදපු 'touchend' event එක පාවිච්චි කරනවා
-playerContainer.addEventListener('touchend', (e) => {
-    // ප්ලේයරයේ control bar එක touch කළොත්, අපේ කිසිම දෙයක් කරන්න එපා
-    if (e.target.closest('.plyr__controls')) return;
-    
-    // Touch event එකක් නැත්නම් මුකුත් කරන්න එපා
-    if (!e.changedTouches || e.changedTouches.length === 0) return;
-
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTapTime;
-    clearTimeout(tapTimeout);
-
-    if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
-        // --- මෙන්න අපේ Medusa පහර! ---
-        // මේ double tap එක ගැන වෙන කිසිම කෙනෙක්ට දැනගන්න ඉඩ තියන්න එපා!
-        e.preventDefault();
-        e.stopPropagation(); 
-        
-        // Double Tap
-        const rect = playerContainer.getBoundingClientRect();
-        const touchX = e.changedTouches[0].clientX;
-        const tapPositionX = touchX - rect.left;
-
-        if (tapPositionX < rect.width * 0.35) {
-            // වම් පැත්තට double tap - Rewind
-            player.rewind(10);
-            rewindIndicator.classList.add('visible');
-            setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
-        } else if (tapPositionX > rect.width * 0.65) {
-            // දකුණු පැත්තට double tap - Forward
-            player.forward(10);
-            forwardIndicator.classList.add('visible');
-            setTimeout(() => forwardIndicator.classList.remove('visible'), 500);
-        } else {
-            // මැද double tap - Fullscreen
-            player.fullscreen.toggle();
-        }
-        lastTapTime = 0; // double tap එකක් නිසා, single tap timer එක reset කරනවා
-    } else {
-        // Single Tap
-        tapTimeout = setTimeout(() => {
-            // single tap එකකින් play/pause වෙනවා
-            player.togglePlay();
-        }, DOUBLE_TAP_DELAY);
-    }
-    lastTapTime = currentTime;
-});
-
-// CSS for Skip Indicators (මේ ටික කලින් තිබ්බ නිසා වෙනසක් නෑ)
-const styles = `
-    .skip-indicator {
-        position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4);
-        color: white; padding: 15px 25px; border-radius: 50px; font-family: 'Josefin Sans', sans-serif;
-        font-size: 1.2em; opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none;
-        display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-    }
-    .skip-indicator.visible { opacity: 1; }
-    .skip-indicator .arrows { font-size: 2.5em; line-height: 1; font-weight: bold; }
-    .skip-indicator-rewind { left: 10%; } .skip-indicator-forward { right: 10%; }
-`;
-const styleSheet = document.createElement("style");
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
-
-// === End of Operation Medusa ===
-                
-                player.on('ready', () => {
-                    if (fileName.toLowerCase().endsWith('.mkv')) {
-                        player.toggleCaptions(true);
+                // අපේ අලුත් subtitles endpoint එකට request එක යවනවා
+                const response = await fetch(fileUrl.replace('/dl/', '/subtitles/'));
+                if (response.ok) {
+                    const subtitleStreams = await response.json();
+                    
+                    if (subtitleStreams.length > 0) {
+                        console.log(`Found ${subtitleStreams.length} subtitle tracks.`);
+                        subtitleStreams.forEach((stream, index) => {
+                            const track = {
+                                kind: 'subtitles',
+                                // ffprobe එකෙන් එන භාෂාව හෝ title එක label එකට ගන්නවා
+                                label: stream.tags?.title || stream.tags?.language || `Subtitle ${index + 1}`,
+                                srclang: stream.tags?.language || `sub${index}`,
+                                // අපේ වෙනස් කරපු subtitle route එකට අදාල stream index එකත් එක්ක URL එක හදනවා
+                                src: fileUrl.replace('/dl/', `/subtitle/${stream.index}`), 
+                                default: index === 0 // පළමු එක default කරනවා
+                            };
+                            sources.tracks.push(track);
+                        });
+                         player.toggleCaptions(true); // උපසිරැසි on කරනවා
                     }
-                });
-                const heading = document.getElementById('heading');
-                if (heading) {
-                    heading.textContent = 'POP Tv One';
-                    heading.style.visibility = 'visible';
                 }
             } catch (error) {
-                console.error("Commando Code execution failed:", error);
+                console.error("Could not fetch subtitles:", error);
             }
         }
-    }, 100);
+        
+        player.source = sources; // Player source එක update කරනවා
+        window.player = player; // Player එක global scope එකට දානවා, පහළ තියෙන touch controls වලට පාවිච්චි කරන්න
+
+        // === Precision Strike: Restoring All Player Features ===
+        setupPlayerFeatures(player); // පහළ තියෙන features ටික වෙනම function එකකට දැම්මා
+
+        const heading = document.getElementById('heading');
+        if (heading) {
+            heading.textContent = 'POP Tv One';
+            heading.style.visibility = 'visible';
+        }
+
+    } catch (error) {
+        console.error("Commando Code execution failed:", error);
+    }
+}
+
+// Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා
+function setupPlayerFeatures(player) {
+    // 1. Auto-Rotation Feature (Restored)
+    player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
+    player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
+
+    // 2. Advanced Touch Controls for Mobile (Double-tap Skip & Single-tap Play/Pause)
+    const playerContainer = player.elements.container;
+    const rewindIndicator = document.createElement('div');
+    rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
+    rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10s</span>`;
+    playerContainer.appendChild(rewindIndicator);
+    const forwardIndicator = document.createElement('div');
+    forwardIndicator.className = 'skip-indicator skip-indicator-forward';
+    forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10s</span>`;
+    playerContainer.appendChild(forwardIndicator);
+
+    let tapTimeout = null;
+    let lastTapTime = 0;
+    const DOUBLE_TAP_DELAY = 300; 
+
+    playerContainer.addEventListener('touchend', (e) => {
+        if (e.target.closest('.plyr__controls')) return;
+        if (!e.changedTouches || e.changedTouches.length === 0) return;
+
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTapTime;
+        clearTimeout(tapTimeout);
+
+        if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
+            e.preventDefault();
+            e.stopPropagation(); 
+            
+            const rect = playerContainer.getBoundingClientRect();
+            const touchX = e.changedTouches[0].clientX;
+            const tapPositionX = touchX - rect.left;
+
+            if (tapPositionX < rect.width * 0.35) {
+                player.rewind(10);
+                rewindIndicator.classList.add('visible');
+                setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
+            } else if (tapPositionX > rect.width * 0.65) {
+                player.forward(10);
+                forwardIndicator.classList.add('visible');
+                setTimeout(() => forwardIndicator.classList.remove('visible'), 500);
+            } else {
+                player.fullscreen.toggle();
+            }
+            lastTapTime = 0;
+        } else {
+            tapTimeout = setTimeout(() => {
+                player.togglePlay();
+            }, DOUBLE_TAP_DELAY);
+        }
+        lastTapTime = currentTime;
+    });
+
+    const styles = `
+        .skip-indicator {
+            position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4);
+            color: white; padding: 15px 25px; border-radius: 50px; font-family: 'Josefin Sans', sans-serif;
+            font-size: 1.2em; opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none;
+            display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .skip-indicator.visible { opacity: 1; }
+        .skip-indicator .arrows { font-size: 2.5em; line-height: 1; font-weight: bold; }
+        .skip-indicator-rewind { left: 10%; } .skip-indicator-forward { right: 10%; }
+    `;
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = styles;
+    document.head.appendChild(styleSheet);
+}
+
+// === End of Operation Medusa ===
+
+// Player එක සහ Plyr ලයිබ්‍රරිය load වෙනකන් ඉඳලා අපේ ප්‍රධාන function එක run කරනවා
+const commandoInterval = setInterval(function() {
+    if (document.getElementById('player') && typeof Plyr !== 'undefined') {
+        clearInterval(commandoInterval);
+        fetchSubtitlesAndSetupPlayer(); // මෙතනින් අපේ අලුත් function එක call කරනවා
+    }
+}, 100);
 </script>
 </html>
