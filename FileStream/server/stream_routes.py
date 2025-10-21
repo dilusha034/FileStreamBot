@@ -47,7 +47,7 @@ async def watch_handler(request: web.Request):
     except FIleNotFound as e:
         raise web.HTTPNotFound(text=e.message)
 
-# --- අවසාන සහ නිවැරදි කරන ලද උපසිරැසි ලබා දීමේ Route එක ---
+# --- අවසාන සහ 100%ක් නිවැරදි කරන ලද උපසිරැසි ලබා දීමේ Route එක ---
 @routes.get("/subtitles/{db_id}")
 async def subtitles_handler(request: web.Request):
     try:
@@ -64,7 +64,7 @@ async def subtitles_handler(request: web.Request):
         
         command = [
             'ffprobe',
-            '-v', 'error',  # Show only errors
+            '-v', 'error',
             '-print_format', 'json',
             '-show_streams',
             '-select_streams', 's',
@@ -78,17 +78,12 @@ async def subtitles_handler(request: web.Request):
             stderr=subprocess.PIPE
         )
         
-        # --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
-        # Telegram එකෙන් දත්ත ඉල්ලන විදිය නිවැරදි කිරීම
-        # එකවර විශාල ප්‍රමාණයක් වෙනුවට, කුඩා කොටස් වශයෙන් දත්ත ලබා ගැනීම
-        total_data_to_pipe = 20 * 1024 * 1024  # 20MB is enough for metadata
-        chunk_size = 1024 * 1024 # 1MB chunks
+        total_data_to_pipe = 20 * 1024 * 1024
+        chunk_size = 1024 * 1024
         parts = math.ceil(total_data_to_pipe / chunk_size)
         
         offset = 0
         piped_data = 0
-
-        # ffprobe එකට අවශ්‍ය මුල් කොටස පමණක් stream කිරීම
         file_stream = tg_connect.yield_file(file_id, index, offset, 0, 0, parts, chunk_size)
 
         try:
@@ -96,8 +91,14 @@ async def subtitles_handler(request: web.Request):
                 if process.stdin.is_closing() or piped_data >= total_data_to_pipe:
                     break
                 process.stdin.write(chunk)
-                await process.stdin.drain()
+                await process.stdin.drain() # --- දෝෂය ඇතිවූ ස්ථානය ---
                 piped_data += len(chunk)
+        
+        # --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
+        # BrokenPipeError එක සාමාන්‍ය දෙයක් ලෙස සලකා එය නොසලකා හරිනවා
+        except BrokenPipeError:
+            logging.warning("BrokenPipeError: FFprobe closed the pipe early (this is often normal).")
+            pass
         except (asyncio.CancelledError, ConnectionResetError):
             pass
         finally:
@@ -111,12 +112,17 @@ async def subtitles_handler(request: web.Request):
             logging.error(f"FFprobe error: {error_message}")
             return web.json_response({"error": f"FFprobe failed: {error_message}"}, status=500)
 
+        # stdout හි කිසිවක් නැතිනම්, හිස් ලැයිස්තුවක් යැවීම
+        if not stdout:
+            logging.warning("FFprobe returned no stdout. No subtitles found or error during probe.")
+            return web.json_response([])
+
         subtitles_data = json.loads(stdout)
         return web.json_response(subtitles_data.get('streams', []))
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        logging.error(f"Subtitle probing failed: {e}\n{error_trace}")
+        logging.error(f"Subtitle probing failed critically: {e}\n{error_trace}")
         return web.json_response({"error": f"Server exception: {str(e)}"}, status=500)
 
 # --- Video/File Download Route එක ---
