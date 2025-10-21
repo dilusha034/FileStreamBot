@@ -1,2 +1,5 @@
 [phases.setup]
 nixPkgs = ["ffmpeg"]
+
+[start]
+cmd = "python3 -m FileStream"
