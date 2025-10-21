@@ -127,6 +127,11 @@
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
+    // Player container එක තිබේදැයි පරීක්ෂා කිරීම
+    if (!player || !player.elements || !player.elements.container) {
+        console.error("Plyr container not found. Skipping feature setup.");
+        return;
+    }
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
     player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
 
