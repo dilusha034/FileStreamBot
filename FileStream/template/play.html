@@ -123,14 +123,11 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE VICTORIOUS CODE v3.0 (FINAL) === -->
+<!-- === Operation Final Victory: THE VICTORIOUS CODE v4.0 (THE FINAL ONE) === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
-    if (!player || !player.elements || !player.elements.container) {
-        console.error("Plyr container not found during setup. Aborting feature setup.");
-        return;
-    }
+    if (!player || !player.elements || !player.elements.container) { return; }
     console.log("Player is ready. Setting up advanced features...");
 
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
@@ -212,6 +209,10 @@ async function initializePlayer() {
             sources: [{ src: fileUrl, type: 'video/mp4' }],
             tracks: []
         };
+        
+        const player = new Plyr(videoElement, {
+            // **නිවැරදි කිරීම 1:** Captions settings මෙතනින් ඉවත් කිරීම
+        });
 
         if (fileName.toLowerCase().endsWith('.mkv')) {
             try {
@@ -221,37 +222,29 @@ async function initializePlayer() {
                     const subtitleStreams = await response.json();
                     if (subtitleStreams && subtitleStreams.length > 0) {
                         subtitleStreams.forEach((stream) => {
-                            const track = {
+                            sources.tracks.push({
                                 kind: 'subtitles',
-                                // **නිවැරදි කිරීම 1:** ලේබලය වඩාත් පැහැදිලි කිරීම
-                                label: `Subtitle Track ${sources.tracks.length + 1}` + (stream.tags?.language ? ` (${stream.tags.language})` : ''),
-                                // **නිවැරදි කිරීම 2:** Player එකට වලංගු භාෂා කේතයක් ලබා දීම
-                                srclang: 'en',
+                                label: stream.tags?.title || `Track ${sources.tracks.length + 1}`,
+                                srclang: stream.tags?.language || 'en',
                                 src: window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`),
                                 default: sources.tracks.length === 0
-                            };
-                            sources.tracks.push(track);
+                            });
                         });
                     }
                 }
             } catch (error) { console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error); }
         }
-        
-        const player = new Plyr(videoElement, {
-             captions: { active: true, update: true, language: 'auto' }
-        });
-        
+
         player.on('ready', () => {
             setupPlayerFeatures(player);
         });
         
         player.source = sources;
 
-        // **නිවැරදි කිරීම 3:** උපසිරැසි තිබේ නම්, Captions මෙනුව ක්‍රියාත්මක කිරීමට player එකට දැන්වීම
-        if (sources.tracks.length > 0) {
-            setTimeout(() => {
-                player.captions.enabled = true;
-            }, 100);
+        // --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
+        // Player එකට උපසිරැසි තිබේදැයි පරීක්ෂා කර, Captions මෙනුව ක්‍රියාත්මක කිරීම
+        if (player.captions.tracks.length > 0) {
+            player.captions.enabled = true;
         }
 
         const heading = document.getElementById('heading');
