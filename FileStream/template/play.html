@@ -125,8 +125,6 @@
 
 <!-- === Operation Final Victory: The Commando Code === -->
 <script>
-<!-- === Operation Final Victory: The Commando Code (DEBUG VERSION) === -->
-<script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
@@ -201,13 +199,17 @@ function setupPlayerFeatures(player) {
 
 // === ප්‍රධාන Function එක: Player එක හදා, Subtitles Fetch කරන තැන ===
 async function initializePlayer() {
-    console.log("DEBUG: 1. initializePlayer function එක ආරම්භ විය.");
     try {
         const videoElement = document.getElementById('player');
-        const fileName = "{{file_name}}";
-        const fileUrl = "{{file_url}}";
         
-        console.log("DEBUG: 2. ගොනුවේ නම:", fileName);
+        // **නිවැරදි කිරීම:** දත්ත, ආරක්ෂිත data-attributes වලින් ලබා ගැනීම
+        const fileName = videoElement.getAttribute('data-filename');
+        const fileUrl = videoElement.getAttribute('data-fileurl');
+
+        if (!fileName || !fileUrl) {
+            console.error("ගොනුවේ නම හෝ URL එක ලබා ගැනීමට නොහැකි විය.");
+            return;
+        }
 
         const sources = {
             type: 'video',
@@ -215,21 +217,15 @@ async function initializePlayer() {
             sources: [{ src: fileUrl, type: 'video/mp4' }],
             tracks: []
         };
-        
-        console.log("DEBUG: 3. .mkv ෆයිල් එකක්දැයි පරීක්ෂා කිරීමට සූදානම්.");
-        if (fileName && fileName.toLowerCase().endsWith('.mkv')) {
-            console.log("DEBUG: 4. ఇది .mkv ගොනුවක්. උපසිරැසි ලබා ගැනීමට උත්සාහ කරයි.");
+
+        if (fileName.toLowerCase().endsWith('.mkv')) {
             try {
                 const subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
-                console.log("DEBUG: 5. උපසිරැසි ඉල්ලන URL එක:", subtitleListUrl);
-                
                 const response = await fetch(subtitleListUrl);
-                console.log("DEBUG: 6. Server එකෙන් ප්‍රතිචාරය ලැබුණි. Status:", response.status);
                 
                 if (response.ok) {
                     const subtitleStreams = await response.json();
                     if (subtitleStreams && subtitleStreams.length > 0) {
-                        console.log(`DEBUG: 7. උපසිරැසි ${subtitleStreams.length}ක් සොයා ගන්නා ලදී.`);
                         subtitleStreams.forEach((stream) => {
                             const subtitleUrl = window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`);
                             const track = {
@@ -241,27 +237,18 @@ async function initializePlayer() {
                             };
                             sources.tracks.push(track);
                         });
-                    } else {
-                         console.log("DEBUG: 7. උපසිරැසි තිබුනත්, list එක හිස්.");
                     }
-                } else {
-                     console.error("DEBUG: 6. උපසිරැසි ලබා ගැනීමට නොහැකි විය. Server Error.");
                 }
             } catch (error) {
-                console.error("DEBUG: 5. උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error);
+                console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error);
             }
-        } else {
-            console.log("DEBUG: 4. මෙය .mkv ගොනුවක් නොවේ. උපසිරැසි ලබා නොගනී.");
         }
         
-        console.log("DEBUG: 8. Player එක සෑදීමට සූදානම්.");
         const player = new Plyr(videoElement, {
              captions: { active: true, update: true, language: 'auto' }
         });
         
         player.source = sources;
-        console.log("DEBUG: 9. Player source එක යාවත්කාලීන කරන ලදී.");
-        
         setupPlayerFeatures(player);
 
         const heading = document.getElementById('heading');
@@ -269,10 +256,9 @@ async function initializePlayer() {
             heading.textContent = 'POP Tv One';
             heading.style.visibility = 'visible';
         }
-        console.log("DEBUG: 10. සියල්ල සාර්ථකව අවසන් විය.");
 
     } catch (error) {
-        console.error("CRITICAL ERROR: initializePlayer function එකේ දෝෂයක්:", error);
+        console.error("initializePlayer function එකේ දෝෂයක්:", error);
     }
 }
 
@@ -283,6 +269,5 @@ const commandoInterval = setInterval(function() {
         initializePlayer();
     }
 }, 100);
-</script>
 </script>
 </html>
