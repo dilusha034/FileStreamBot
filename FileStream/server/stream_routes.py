@@ -47,7 +47,7 @@ async def watch_handler(request: web.Request):
     except FIleNotFound as e:
         raise web.HTTPNotFound(text=e.message)
 
-# --- අලුත්: උපසිරැසි තොරතුරු ලබා දීමේ Route එක ---
+# --- අලුත්: උපසිරැසි තොරතුරු ලබා දීමේ Route එක (DEBUG VERSION) ---
 @routes.get("/subtitles/{db_id}")
 async def subtitles_handler(request: web.Request):
     try:
@@ -62,14 +62,13 @@ async def subtitles_handler(request: web.Request):
         
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
         
-        # ffprobe command එක මගින් සියලු streams වල තොරතුරු JSON ලෙස ලබාගැනීම
         command = [
             'ffprobe',
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_streams',
-            '-select_streams', 's', # 's' යනු subtitle streams පමණක් තේරීමයි
-            'pipe:0' # Input එක pipe එකකින් (Telegram stream) ලබාගැනීම
+            '-select_streams', 's',
+            'pipe:0'
         ]
         
         process = await asyncio.create_subprocess_exec(
@@ -78,10 +77,7 @@ async def subtitles_handler(request: web.Request):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-
-        # Telegram stream එක ffprobe වෙත pipe කිරීම
-        # මෙහිදී සම්පූර්ණ file එක download කිරීම අවශ්‍ය නෑ, ffprobe ට metadata කියවීමට අවශ්‍ය මුල් කොටස පමණක් යැවීම ප්‍රමාණවත්
-        # අපි මෙහිදී පළමු MB 20 යවනවා, එය බොහෝ විට metadata සඳහා ප්‍රමාණවත්
+        
         buffer_size = 20 * 1024 * 1024 
         file_stream = tg_connect.yield_file(file_id, index, 0, 0, buffer_size, 1, buffer_size)
         
@@ -92,99 +88,28 @@ async def subtitles_handler(request: web.Request):
                 process.stdin.write(chunk)
                 await process.stdin.drain()
         except (asyncio.CancelledError, ConnectionResetError):
-            pass # Client විසන්ධි වුවහොත් error නොපෙන්වා සිටීමට
+            pass
         finally:
             if not process.stdin.is_closing():
                 process.stdin.close()
 
         stdout, stderr = await process.communicate()
         
+        # --- **ප්‍රධාන වෙනස්කම මෙතන** ---
+        # ffprobe එකේ දෝෂයක් ආවොත්, ඒ දෝෂයම client එකට යවනවා
         if process.returncode != 0:
-            logging.error(f"FFprobe error: {stderr.decode().strip()}")
-            raise web.HTTPInternalServerError(text="Failed to probe for subtitles.")
+            error_message = stderr.decode().strip()
+            logging.error(f"FFprobe error: {error_message}")
+            return web.Response(status=500, text=f"FFprobe failed: {error_message}")
 
-        # ffprobe ප්‍රතිදානය JSON එකක් ලෙස සකසා client එකට යැවීම
         subtitles_data = json.loads(stdout)
         return web.json_response(subtitles_data.get('streams', []))
 
     except Exception as e:
-        logging.error(f"Subtitle probing failed: {e}")
-        return web.json_response([], status=500)
-
-# --- යාවත්කාලීන කරන ලද Subtitle Route එක ---
-@routes.get("/subtitle/{db_id}/{stream_index}")
-async def subtitle_handler(request: web.Request):
-    try:
-        db_id = request.match_info['db_id']
-        stream_index_str = request.match_info.get('stream_index', '0')
-        
-        if not stream_index_str.isdigit():
-            return web.Response(status=400, text="Invalid subtitle index.")
-        
-        stream_index = int(stream_index_str)
-
-        index = min(work_loads, key=work_loads.get)
-        faster_client = multi_clients[index]
-
-        tg_connect = class_cache.get(faster_client)
-        if not tg_connect:
-            tg_connect = utils.ByteStreamer(faster_client)
-            class_cache[faster_client] = tg_connect
-        
-        file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-
-        # ffmpeg command to extract the SPECIFIED subtitle track and convert to webvtt
-        command = [
-            'ffmpeg', '-i', 'pipe:0',
-            '-map', f'0:s:{stream_index}', # මෙතන වෙනස් වෙනවා
-            '-f', 'webvtt',
-            'pipe:1'
-        ]
-        
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-
-        response = web.StreamResponse(headers={'Content-Type': 'text/vtt'})
-        await response.prepare(request)
-
-        async def pipe_to_ffmpeg():
-            try:
-                # සම්පූර්ණ ගොනුවම stream කරනවා
-                async for chunk in tg_connect.yield_file(file_id, index, 0, 0, file_id.file_size, math.ceil(file_id.file_size / (1024*1024)), 1024*1024):
-                    if process.stdin.is_closing(): break
-                    process.stdin.write(chunk)
-                    await process.stdin.drain()
-            except (asyncio.CancelledError, ConnectionResetError):
-                pass
-            finally:
-                if not process.stdin.is_closing():
-                    process.stdin.close()
-
-        async def pipe_to_client():
-            try:
-                while not process.stdout.at_eof():
-                    chunk = await process.stdout.read(4096)
-                    if not chunk: break
-                    await response.write(chunk)
-            except (asyncio.CancelledError, ConnectionResetError):
-                pass
-        
-        async def log_stderr():
-            while not process.stderr.at_eof():
-                line = await process.stderr.readline()
-                if line: logging.error(f"FFmpeg Subtitle stderr: {line.decode().strip()}")
-
-        await asyncio.gather(pipe_to_ffmpeg(), pipe_to_client(), log_stderr())
-        await response.write_eof()
-        return response
-
-    except Exception as e:
-        logging.error(f"Subtitle generation failed: {e}")
-        return web.Response(status=500, text="Failed to extract subtitle.")
+        # Server එකේ වෙනත් දෝෂයක් ආවොත්, ඒකත් client එකට යවනවා
+        error_trace = traceback.format_exc()
+        logging.error(f"Subtitle probing failed: {e}\n{error_trace}")
+        return web.Response(status=500, text=f"Server exception: {e}\n{error_trace}")
 
 # --- Video/File Download Route එක ---
 @routes.get("/dl/{path}", allow_head=True)
