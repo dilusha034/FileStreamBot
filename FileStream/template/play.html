@@ -123,7 +123,7 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE VICTORIOUS CODE v2.0 === -->
+<!-- === Operation Final Victory: THE VICTORIOUS CODE v3.0 (FINAL) === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
@@ -219,17 +219,18 @@ async function initializePlayer() {
                 const response = await fetch(subtitleListUrl);
                 if (response.ok) {
                     const subtitleStreams = await response.json();
-                    console.log('Server එකෙන් ලැබුණු උපසිරැසි දත්ත:', subtitleStreams); // වැදගත්ම log එක
                     if (subtitleStreams && subtitleStreams.length > 0) {
                         subtitleStreams.forEach((stream) => {
-                            const subtitleUrl = window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`);
-                            sources.tracks.push({
+                            const track = {
                                 kind: 'subtitles',
-                                label: stream.tags?.title || stream.tags?.language || `Subtitle ${stream.index}`,
-                                srclang: stream.tags?.language || `sub${stream.index}`,
-                                src: subtitleUrl,
+                                // **නිවැරදි කිරීම 1:** ලේබලය වඩාත් පැහැදිලි කිරීම
+                                label: `Subtitle Track ${sources.tracks.length + 1}` + (stream.tags?.language ? ` (${stream.tags.language})` : ''),
+                                // **නිවැරදි කිරීම 2:** Player එකට වලංගු භාෂා කේතයක් ලබා දීම
+                                srclang: 'en',
+                                src: window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`),
                                 default: sources.tracks.length === 0
-                            });
+                            };
+                            sources.tracks.push(track);
                         });
                     }
                 }
@@ -240,13 +241,18 @@ async function initializePlayer() {
              captions: { active: true, update: true, language: 'auto' }
         });
         
-        // --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
-        // Player එක සම්පූර්ණයෙන්ම සූදානම් වූ පසු, අමතර features ටික එකතු කිරීම
         player.on('ready', () => {
             setupPlayerFeatures(player);
         });
-
+        
         player.source = sources;
+
+        // **නිවැරදි කිරීම 3:** උපසිරැසි තිබේ නම්, Captions මෙනුව ක්‍රියාත්මක කිරීමට player එකට දැන්වීම
+        if (sources.tracks.length > 0) {
+            setTimeout(() => {
+                player.captions.enabled = true;
+            }, 100);
+        }
 
         const heading = document.getElementById('heading');
         if (heading) {
