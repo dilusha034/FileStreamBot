@@ -125,80 +125,13 @@
 
 <!-- === Operation Final Victory: The Commando Code === -->
 <script>
-// === අලුත් Function එක: Subtitles Fetch කර Player එක හදන තැන ===
-async function fetchSubtitlesAndSetupPlayer() {
-    const videoElement = document.getElementById('player');
-    if (!videoElement || typeof Plyr === 'undefined') return;
-
-    console.log("VICTORY: Player fortress captured! Executing our plan...");
-    try {
-        const player = new Plyr(videoElement, {
-            // ඔබට අවශ්‍ය වෙනත් Plyr options මෙතනට දාන්න
-        });
-
-        const fileName = "{{file_name}}";
-        const fileUrl = "{{file_url}}";
-        const sources = {
-            type: 'video',
-            title: fileName,
-            sources: [{ src: fileUrl, type: 'video/mp4' }], // type එක දාන එක හොඳයි
-            tracks: [] // ආරම්භයේදී හිස් tracks array එකක්
-        };
-
-        // .mkv file එකක් නම් පමණක් subtitles fetch කරනවා
-        if (fileName.toLowerCase().endsWith('.mkv')) {
-            try {
-                // අපේ අලුත් subtitles endpoint එකට request එක යවනවා
-                const response = await fetch(fileUrl.replace('/dl/', '/subtitles/'));
-                if (response.ok) {
-                    const subtitleStreams = await response.json();
-                    
-                    if (subtitleStreams.length > 0) {
-                        console.log(`Found ${subtitleStreams.length} subtitle tracks.`);
-                        subtitleStreams.forEach((stream, index) => {
-                            const track = {
-                                kind: 'subtitles',
-                                // ffprobe එකෙන් එන භාෂාව හෝ title එක label එකට ගන්නවා
-                                label: stream.tags?.title || stream.tags?.language || `Subtitle ${index + 1}`,
-                                srclang: stream.tags?.language || `sub${index}`,
-                                // අපේ වෙනස් කරපු subtitle route එකට අදාල stream index එකත් එක්ක URL එක හදනවා
-                                src: fileUrl.replace('/dl/', `/subtitle/${stream.index}`), 
-                                default: index === 0 // පළමු එක default කරනවා
-                            };
-                            sources.tracks.push(track);
-                        });
-                         player.toggleCaptions(true); // උපසිරැසි on කරනවා
-                    }
-                }
-            } catch (error) {
-                console.error("Could not fetch subtitles:", error);
-            }
-        }
-        
-        player.source = sources; // Player source එක update කරනවා
-        window.player = player; // Player එක global scope එකට දානවා, පහළ තියෙන touch controls වලට පාවිච්චි කරන්න
-
-        // === Precision Strike: Restoring All Player Features ===
-        setupPlayerFeatures(player); // පහළ තියෙන features ටික වෙනම function එකකට දැම්මා
-
-        const heading = document.getElementById('heading');
-        if (heading) {
-            heading.textContent = 'POP Tv One';
-            heading.style.visibility = 'visible';
-        }
-
-    } catch (error) {
-        console.error("Commando Code execution failed:", error);
-    }
-}
-
-// Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා
+<!-- === Operation Final Victory: The Commando Code (Corrected) === -->
+<script>
+// === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
-    // 1. Auto-Rotation Feature (Restored)
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
     player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
 
-    // 2. Advanced Touch Controls for Mobile (Double-tap Skip & Single-tap Play/Pause)
     const playerContainer = player.elements.container;
     const rewindIndicator = document.createElement('div');
     rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
@@ -266,13 +199,84 @@ function setupPlayerFeatures(player) {
     document.head.appendChild(styleSheet);
 }
 
-// === End of Operation Medusa ===
+// === ප්‍රධාන Function එක: Player එක හදා, Subtitles Fetch කරන තැන ===
+async function initializePlayer() {
+    console.log("VICTORY: Player fortress captured! Executing our plan...");
+    try {
+        const videoElement = document.getElementById('player');
+        const fileName = "{{file_name}}";
+        const fileUrl = "{{file_url}}";
+
+        const sources = {
+            type: 'video',
+            title: fileName,
+            sources: [{ src: fileUrl, type: 'video/mp4' }],
+            tracks: []
+        };
+
+        // --- **නිවැරදි කිරීම 1: උපසිරැසි fetch කිරීමේ ක්‍රමය** ---
+        if (fileName.toLowerCase().endsWith('.mkv')) {
+            try {
+                // URL එක වඩාත් ස්ථාවර ක්‍රමයකට සකස් කිරීම.
+                // වත්මන් URL එකේ ('/watch/') කොටස ('/subtitles/') ලෙස වෙනස් කරයි.
+                const subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
+                console.log("Fetching subtitles from:", subtitleListUrl);
+                const response = await fetch(subtitleListUrl);
+                
+                if (response.ok) {
+                    const subtitleStreams = await response.json();
+                    if (subtitleStreams && subtitleStreams.length > 0) {
+                        console.log(`Found ${subtitleStreams.length} subtitle tracks.`);
+                        subtitleStreams.forEach((stream) => {
+                            // URL එක සෑදීම සඳහා නැවතත් `/watch/` යන්න `/subtitle/{stream_index}` ලෙස වෙනස් කරයි
+                            const subtitleUrl = window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`);
+                            const track = {
+                                kind: 'subtitles',
+                                label: stream.tags?.title || stream.tags?.language || `Subtitle ${stream.index}`,
+                                srclang: stream.tags?.language || `sub${stream.index}`,
+                                src: subtitleUrl,
+                                default: sources.tracks.length === 0 // පළමු එක default කරනවා
+                            };
+                            sources.tracks.push(track);
+                        });
+                    }
+                } else {
+                     console.error("Failed to fetch subtitles. Status:", response.status);
+                }
+            } catch (error) {
+                console.error("Could not fetch subtitles:", error);
+            }
+        }
+        
+        // --- **නිවැරදි කිරීම 2: Player එක initialize කිරීම** ---
+        // Player එක සාදන්නේ සියලු sources සහ tracks සූදානම් වූ පසුවයි.
+        const player = new Plyr(videoElement, {
+             captions: { active: true, update: true, language: 'auto' }
+        });
+        
+        player.source = sources; // Player source එක update කරනවා
+        
+        // Player එකට අමතර features ටික එකතු කිරීම
+        setupPlayerFeatures(player);
+
+        const heading = document.getElementById('heading');
+        if (heading) {
+            heading.textContent = 'POP Tv One';
+            heading.style.visibility = 'visible';
+        }
+
+    } catch (error) {
+        console.error("Commando Code execution failed:", error);
+    }
+}
 
 // Player එක සහ Plyr ලයිබ්‍රරිය load වෙනකන් ඉඳලා අපේ ප්‍රධාන function එක run කරනවා
 const commandoInterval = setInterval(function() {
+    // --- **නිවැරදි කිරීම 3: Player එක තිබේදැයි බලන condition එක** ---
+    // `videoElement.plyr` පරීක්ෂා කිරීම ඉවත් කර ඇත.
     if (document.getElementById('player') && typeof Plyr !== 'undefined') {
         clearInterval(commandoInterval);
-        fetchSubtitlesAndSetupPlayer(); // මෙතනින් අපේ අලුත් function එක call කරනවා
+        initializePlayer(); // අපේ ප්‍රධාන function එක call කරනවා
     }
 }, 100);
 </script>
