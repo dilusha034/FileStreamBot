@@ -123,12 +123,11 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE ABSOLUTE FINAL CODE v5.0 === -->
+<!-- === Operation Final Victory: THE TRUE FINAL CODE === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
     if (!player || !player.elements || !player.elements.container) { return; }
-    console.log("Player is ready. Setting up advanced features...");
 
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
     player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
@@ -195,39 +194,37 @@ function setupPlayerFeatures(player) {
 async function initializePlayer() {
     try {
         const videoElement = document.getElementById('player');
-        const fileName = videoElement.getAttribute('data-filename');
-        const fileUrl = videoElement.getAttribute('data-fileurl');
+        let fileName = videoElement.getAttribute('data-filename');
+        let fileUrl = videoElement.getAttribute('data-fileurl');
 
         if (!fileName || !fileUrl) {
             console.error("ගොනුවේ නම හෝ URL එක ලබා ගැනීමට නොහැකි විය.");
             return;
         }
-        
-        const player = new Plyr(videoElement, {
-            captions: { active: true, update: true }
-        });
-        
-        const sources = {
-            type: 'video',
-            title: fileName,
-            sources: [{ src: fileUrl, type: 'video/mp4' }],
-            tracks: []
-        };
 
+        // --- **මෙන්න ප්‍රධානම සහ අවසානම නිවැරදි කිරීම** ---
+        // 'Mixed Content' දෝෂය නැති කිරීමට URL එක HTTPS වලට හැරවීම
+        if (fileUrl.startsWith('http://')) {
+            fileUrl = fileUrl.replace('http://', 'https://');
+        }
+
+        const tracks = [];
         if (fileName.toLowerCase().endsWith('.mkv')) {
             try {
-                const subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
+                let subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
+                
                 const response = await fetch(subtitleListUrl);
                 if (response.ok) {
                     const subtitleStreams = await response.json();
                     if (subtitleStreams && subtitleStreams.length > 0) {
                         subtitleStreams.forEach((stream) => {
-                            sources.tracks.push({
+                            let subtitleUrl = window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`);
+                            tracks.push({
                                 kind: 'subtitles',
-                                label: stream.tags?.title || `Track ${sources.tracks.length + 1}`,
-                                srclang: stream.tags?.language || `en${sources.tracks.length}`, // Unique srclang
-                                src: window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`),
-                                default: sources.tracks.length === 0
+                                label: stream.tags?.title || `Track ${tracks.length + 1}`,
+                                srclang: stream.tags?.language || `en${tracks.length}`,
+                                src: subtitleUrl,
+                                default: tracks.length === 0
                             });
                         });
                     }
@@ -235,25 +232,20 @@ async function initializePlayer() {
             } catch (error) { console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error); }
         }
 
+        const player = new Plyr(videoElement, {
+            captions: { active: true, update: true }
+        });
+
+        player.source = {
+            type: 'video',
+            title: fileName,
+            sources: [{ src: fileUrl, type: 'video/mp4' }],
+            tracks: tracks
+        };
+
         player.on('ready', () => {
             setupPlayerFeatures(player);
         });
-        
-        // --- **මෙන්න අවසානම නිවැරදි කිරීම** ---
-        // Player එක, අලුත් source එක භාරගෙන ඉවර වුණාම, captions on කිරීම
-        player.on('sourcechange', () => {
-            setTimeout(() => {
-                if (player.captions.tracks && player.captions.tracks.length > 0) {
-                    console.log('Forcing captions ON and setting track.');
-                    player.captions.enabled = true;
-                    // Player එකට පළමු උපසිරැසිය ක්‍රියාත්මක කිරීමට අණ කිරීම
-                    player.currentTrack = 0; 
-                }
-            }, 100); 
-        });
-
-        // Player එකට අලුත් source එක භාර දීම
-        player.source = sources;
 
         const heading = document.getElementById('heading');
         if (heading) {
