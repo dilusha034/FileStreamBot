@@ -123,7 +123,7 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE ABSOLUTE FINAL CODE === -->
+<!-- === Operation Final Victory: THE ABSOLUTE FINAL CODE v2.0 === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
@@ -223,7 +223,7 @@ async function initializePlayer() {
                             sources.tracks.push({
                                 kind: 'subtitles',
                                 label: stream.tags?.title || `Track ${sources.tracks.length + 1}`,
-                                srclang: stream.tags?.language || 'en',
+                                srclang: stream.tags?.language || `en${sources.tracks.length}`, // Unique srclang
                                 src: window.location.pathname.replace('/watch/', `/subtitle/${stream.index}`),
                                 default: sources.tracks.length === 0
                             });
@@ -240,12 +240,14 @@ async function initializePlayer() {
         // --- **මෙන්න අවසානම නිවැරදි කිරීම** ---
         // Player එක, අලුත් source එක භාරගෙන ඉවර වුණාම, captions on කිරීම
         player.on('sourcechange', () => {
-            if (player.captions.tracks.length > 0) {
-                // පොඩි වෙලාවක් දීමෙන් player එකට UI එක update කිරීමට ඉඩ දීම
-                setTimeout(() => {
+            setTimeout(() => {
+                if (player.captions.tracks && player.captions.tracks.length > 0) {
+                    console.log('Forcing captions ON and setting track.');
                     player.captions.enabled = true;
-                }, 50); 
-            }
+                    // Player එකට පළමු උපසිරැසිය ක්‍රියාත්මක කිරීමට අණ කිරීම
+                    player.currentTrack = 0; 
+                }
+            }, 100); 
         });
 
         // Player එකට අලුත් source එක භාර දීම
