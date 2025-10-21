@@ -47,7 +47,7 @@ async def watch_handler(request: web.Request):
     except FIleNotFound as e:
         raise web.HTTPNotFound(text=e.message)
 
-# --- අවසාන සහ 100%ක් නිවැරදි කරන ලද උපසිරැසි ලබා දීමේ Route එක ---
+# --- අවසානම සහ ස්ථිරම උපසිරැසි ලබා දීමේ Route එක ---
 @routes.get("/subtitles/{db_id}")
 async def subtitles_handler(request: web.Request):
     try:
@@ -78,7 +78,10 @@ async def subtitles_handler(request: web.Request):
             stderr=subprocess.PIPE
         )
         
-        total_data_to_pipe = 20 * 1024 * 1024
+        # --- **මෙන්න ප්‍රධානම වෙනස්කම** ---
+        # ffprobe එකට යවන දත්ත ප්‍රමාණය 50MB දක්වා වැඩි කිරීම
+        total_data_to_pipe = 50 * 1024 * 1024
+        
         chunk_size = 1024 * 1024
         parts = math.ceil(total_data_to_pipe / chunk_size)
         
@@ -91,11 +94,8 @@ async def subtitles_handler(request: web.Request):
                 if process.stdin.is_closing() or piped_data >= total_data_to_pipe:
                     break
                 process.stdin.write(chunk)
-                await process.stdin.drain() # --- දෝෂය ඇතිවූ ස්ථානය ---
+                await process.stdin.drain()
                 piped_data += len(chunk)
-        
-        # --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
-        # BrokenPipeError එක සාමාන්‍ය දෙයක් ලෙස සලකා එය නොසලකා හරිනවා
         except BrokenPipeError:
             logging.warning("BrokenPipeError: FFprobe closed the pipe early (this is often normal).")
             pass
@@ -112,7 +112,6 @@ async def subtitles_handler(request: web.Request):
             logging.error(f"FFprobe error: {error_message}")
             return web.json_response({"error": f"FFprobe failed: {error_message}"}, status=500)
 
-        # stdout හි කිසිවක් නැතිනම්, හිස් ලැයිස්තුවක් යැවීම
         if not stdout:
             logging.warning("FFprobe returned no stdout. No subtitles found or error during probe.")
             return web.json_response([])
