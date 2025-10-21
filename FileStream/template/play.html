@@ -123,7 +123,7 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE VICTORIOUS CODE v4.0 (THE FINAL ONE) === -->
+<!-- === Operation Final Victory: THE ABSOLUTE FINAL CODE === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
@@ -202,17 +202,15 @@ async function initializePlayer() {
             console.error("ගොනුවේ නම හෝ URL එක ලබා ගැනීමට නොහැකි විය.");
             return;
         }
-
+        
+        const player = new Plyr(videoElement, {});
+        
         const sources = {
             type: 'video',
             title: fileName,
             sources: [{ src: fileUrl, type: 'video/mp4' }],
             tracks: []
         };
-        
-        const player = new Plyr(videoElement, {
-            // **නිවැරදි කිරීම 1:** Captions settings මෙතනින් ඉවත් කිරීම
-        });
 
         if (fileName.toLowerCase().endsWith('.mkv')) {
             try {
@@ -239,13 +237,19 @@ async function initializePlayer() {
             setupPlayerFeatures(player);
         });
         
-        player.source = sources;
+        // --- **මෙන්න අවසානම නිවැරදි කිරීම** ---
+        // Player එක, අලුත් source එක භාරගෙන ඉවර වුණාම, captions on කිරීම
+        player.on('sourcechange', () => {
+            if (player.captions.tracks.length > 0) {
+                // පොඩි වෙලාවක් දීමෙන් player එකට UI එක update කිරීමට ඉඩ දීම
+                setTimeout(() => {
+                    player.captions.enabled = true;
+                }, 50); 
+            }
+        });
 
-        // --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
-        // Player එකට උපසිරැසි තිබේදැයි පරීක්ෂා කර, Captions මෙනුව ක්‍රියාත්මක කිරීම
-        if (player.captions.tracks.length > 0) {
-            player.captions.enabled = true;
-        }
+        // Player එකට අලුත් source එක භාර දීම
+        player.source = sources;
 
         const heading = document.getElementById('heading');
         if (heading) {
