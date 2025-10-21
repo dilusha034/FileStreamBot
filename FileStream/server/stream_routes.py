@@ -47,7 +47,7 @@ async def watch_handler(request: web.Request):
     except FIleNotFound as e:
         raise web.HTTPNotFound(text=e.message)
 
-# --- අලුත්: උපසිරැසි තොරතුරු ලබා දීමේ Route එක (DEBUG VERSION) ---
+# --- අවසාන සහ නිවැරදි කරන ලද උපසිරැසි ලබා දීමේ Route එක ---
 @routes.get("/subtitles/{db_id}")
 async def subtitles_handler(request: web.Request):
     try:
@@ -64,7 +64,7 @@ async def subtitles_handler(request: web.Request):
         
         command = [
             'ffprobe',
-            '-v', 'quiet',
+            '-v', 'error',  # Show only errors
             '-print_format', 'json',
             '-show_streams',
             '-select_streams', 's',
@@ -78,15 +78,26 @@ async def subtitles_handler(request: web.Request):
             stderr=subprocess.PIPE
         )
         
-        buffer_size = 20 * 1024 * 1024 
-        file_stream = tg_connect.yield_file(file_id, index, 0, 0, buffer_size, 1, buffer_size)
+        # --- **මෙන්න ප්‍රධානම නිවැරදි කිරීම** ---
+        # Telegram එකෙන් දත්ත ඉල්ලන විදිය නිවැරදි කිරීම
+        # එකවර විශාල ප්‍රමාණයක් වෙනුවට, කුඩා කොටස් වශයෙන් දත්ත ලබා ගැනීම
+        total_data_to_pipe = 20 * 1024 * 1024  # 20MB is enough for metadata
+        chunk_size = 1024 * 1024 # 1MB chunks
+        parts = math.ceil(total_data_to_pipe / chunk_size)
         
+        offset = 0
+        piped_data = 0
+
+        # ffprobe එකට අවශ්‍ය මුල් කොටස පමණක් stream කිරීම
+        file_stream = tg_connect.yield_file(file_id, index, offset, 0, 0, parts, chunk_size)
+
         try:
             async for chunk in file_stream:
-                if process.stdin.is_closing():
+                if process.stdin.is_closing() or piped_data >= total_data_to_pipe:
                     break
                 process.stdin.write(chunk)
                 await process.stdin.drain()
+                piped_data += len(chunk)
         except (asyncio.CancelledError, ConnectionResetError):
             pass
         finally:
@@ -95,21 +106,18 @@ async def subtitles_handler(request: web.Request):
 
         stdout, stderr = await process.communicate()
         
-        # --- **ප්‍රධාන වෙනස්කම මෙතන** ---
-        # ffprobe එකේ දෝෂයක් ආවොත්, ඒ දෝෂයම client එකට යවනවා
         if process.returncode != 0:
             error_message = stderr.decode().strip()
             logging.error(f"FFprobe error: {error_message}")
-            return web.Response(status=500, text=f"FFprobe failed: {error_message}")
+            return web.json_response({"error": f"FFprobe failed: {error_message}"}, status=500)
 
         subtitles_data = json.loads(stdout)
         return web.json_response(subtitles_data.get('streams', []))
 
     except Exception as e:
-        # Server එකේ වෙනත් දෝෂයක් ආවොත්, ඒකත් client එකට යවනවා
         error_trace = traceback.format_exc()
         logging.error(f"Subtitle probing failed: {e}\n{error_trace}")
-        return web.Response(status=500, text=f"Server exception: {e}\n{error_trace}")
+        return web.json_response({"error": f"Server exception: {str(e)}"}, status=500)
 
 # --- Video/File Download Route එක ---
 @routes.get("/dl/{path}", allow_head=True)
