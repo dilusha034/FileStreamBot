@@ -4,255 +4,88 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POP Tv One | {{file_name}}</title>
-    <link rel="icon" href="https://raw.githubusercontent.com/dilusha034/FileStreamBot/main/photo_2025-09-24_00-54-09.jpg?v=2" type="image/x-icon">
-    <link rel="shortcut icon" href="https://raw.githubusercontent.com/dilusha034/FileStreamBot/main/photo_2025-09-24_00-54-09.jpg?v=2" type="image/x-icon">
-    <link rel="stylesheet" href="https://unpkg.com/sheryjs/dist/Shery.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/proavipatil/data@main/fs/src/style.css">
+    
+    <!-- === අත්‍යවශ්‍යම දේ පමණක් ඉතිරි කර ඇත === -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/proavipatil/data@main/fs/src/plyr.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #121212; color: white; font-family: sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .file-info { margin-top: 20px; }
+    </style>
 </head>
 <body>
-    <nav>
-        <div class="nleft">
-            <a href="#">
-                <h3 id="heading" style="z-index: 100; visibility: hidden;" class="magnet title">POP Tv One</h3>
-            </a>
+
+    <div class="container">
+        <h1>{{file_name}}</h1>
+
+        <!-- === අපගේ අවසාන නිවැරදි කිරීම සමඟින් Video Tag එක === -->
+        <video id="player" class="player" playsinline controls width="100%" data-filename="{{file_name}}" data-fileurl="{{file_url}}"></video>
+        
+        <div class="file-info">
+            <p>ගොනුවේ ප්‍රමාණය: {{file_size}}</p>
         </div>
-        <div class="nryt">
-            <a class="home-btn magnet" href="#main" onclick="toggleWidthnav(this)">මුල් පිටුව</a>
-            <a href="#abtus" class="about-btn magnet" onclick="toggleWidthnav(this)">අපි ගැන</a>
-        </div>
-    </nav>
-    <center>
-        <div class="about-nav">
-            <a href="#abtus" class="wlcm magnet" onclick="toggleWidth(this)">පිළිගැනීම</a>
-            <a href="#channels" class="abt-chnl magnet" onclick="toggleWidth(this)">අපේ චැනල්</a>
-            <a href="#contact" class="magnet contact-btn" onclick="toggleWidth(this)">සම්බන්ධ වන්න</a>
-        </div>
-    </center>
-   <div class="outer">
-        <div class="inner">
-            <div class="main" id="main">
-                <video id="player" class="player" playsinline controls width="100%" data-filename="{{file_name}}" data-fileurl="{{file_url}}"></video>
-                <div class="player"></div>
-                <div class="file-name">
-                    <h4 style="display: inline;">ගොනුවේ නම: </h4>
-                    <p style="display: inline;" id="myDiv">{{file_name}}</p><br>
-                    <h4 style="display: inline;">ගොනුවේ ප්‍රමාණය: </h4>
-                    <p style="display: inline;">{{file_size}}</p>
-                </div>
-                <div class="downloadBtn">
-                    <button class="magnet" onclick="streamDownload()">
-                        <img style="height: 30px;" src="https://i.ibb.co/RjzYttX/dl.png" alt="">බාගත කරන්න
-                    </button>
-                    <button class="magnet" onclick="copyStreamLink()">
-                        <img src="https://i.ibb.co/CM4Y586/link.png" alt="Copy Link">ලින්ක් එක කොපි කරන්න
-                    </button>
-                    <button class="magnet" onclick="vlc_player()">
-                        <img src="https://i.ibb.co/px6fQs1/vlc.png" alt="">VLC Player
-                    </button>
-                    <button class="magnet" onclick="mx_player()">
-                        <img src="https://i.ibb.co/41WvtQ3/mx.png" alt="">MX Player
-                    </button>
-                    <button class="magnet" onclick="n_player()">
-                        <img src="https://i.ibb.co/Hd2dS4t/nPlayer.png" alt="">nPlayer
-                    </button>
-                </div>
-            </div>
-            <div class="abt">
-                <div class="about">
-                    <div class="about-dets">
-                        <div class="abt-sec" id="abtus" style="padding: 160px 30px;">
-                            <h1 style="text-align: center;">POP TV ONE වෙත <Span>සාදරයෙන්</Span> පිළිගනිමු</h1>
-                            <p style="text-align: center; line-height: 2;word-spacing: 2px;  letter-spacing: 0.8px;">
-                                මෙය POP Tv One හි නිල චිත්‍රපට සහ කතා මාලා නැරඹීමේ පිටුවයි. ඔබට අවශ්‍ය නම් මෙතනින් කෙලින්ම නැරඹීමට හෝ බාගත කිරීමට හැකිය. 
-                                <br><br>ඔබ මෙම සේවාවට කැමති නම්, ඔබේ මිතුරන් සමගද බෙදාගැනීමට අමතක කරන්න එපා!
-                            </p>
-                        </div>
-                        <div class="abt-sec" id="channels">
-                            <h1>අපේ <span>TELEGRAM</span> චැනල්</h1>
-                            <div class="links chnl-link">
-                                <a class="magnet" href="https://t.me/POPTvOne">
-                                    <button>POP TV ONE (Movies & TV)</button>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="abt-sec" id="contact">
-                            <p style="text-align: center;">යම් ගැටළුවක් හෝ දෝෂයක් ඇත්නම්, පහතින් අපව අමතන්න</p>
-                            <div class="links contact">
-                                <a href="https://t.me/Mr_D_2000">
-                                    <button>සම්බන්ධ වන්න (Contact)</button>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <footer>
-            <center>
-                <div class="movie-cont">
-                    <div class="movieSug">
-                        <div class="movieDets"></div>
-                        <div class="movieimg"><img src=""></div>
-                    </div>
-                    <div class="low-width-movie-dets">
-                        <div class="movieStsBar">
-                            <div class="movieDets-mini"></div>
-                        </div>
-                    </div>
-                    <button class="ranMovBtn" onclick="getDets()">Get More Movies Suggestion</button>
-                </div>
-            </center>
-            <center>
-                <div class="copyright">
-                    <h5 class="text-center">Copyright © 2025 <a href="https://t.me/POPTvOne"><span style="font-weight: 700;">POP Tv One</span></a>. All Rights Reserved.</h5>
-                </div>
-            </center>
-        </footer>
     </div>
-</body>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/automat/controlkit.js@master/bin/controlKit.min.js"></script>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/sheryjs/dist/Shery.js"></script>
-<script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
-<script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory v2: THE DEFINITIVE CODE === -->
-<script>
-// === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
-function setupPlayerFeatures(player) {
-    if (!player || !player.elements || !player.elements.container) { return; }
-    player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
-    player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
-    const playerContainer = player.elements.container;
-    const rewindIndicator = document.createElement('div');
-    rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
-    rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10s</span>`;
-    playerContainer.appendChild(rewindIndicator);
-    const forwardIndicator = document.createElement('div');
-    forwardIndicator.className = 'skip-indicator skip-indicator-forward';
-    forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10s</span>`;
-    playerContainer.appendChild(forwardIndicator);
-    let tapTimeout = null;
-    let lastTapTime = 0;
-    const DOUBLE_TAP_DELAY = 300;
-    playerContainer.addEventListener('touchend', (e) => {
-        if (e.target.closest('.plyr__controls')) return;
-        if (!e.changedTouches || e.changedTouches.length === 0) return;
-        const currentTime = new Date().getTime();
-        const tapLength = currentTime - lastTapTime;
-        clearTimeout(tapTimeout);
-        if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
-            e.preventDefault();
-            e.stopPropagation();
-            const rect = playerContainer.getBoundingClientRect();
-            const touchX = e.changedTouches[0].clientX;
-            const tapPositionX = touchX - rect.left;
-            if (tapPositionX < rect.width * 0.35) {
-                player.rewind(10);
-                rewindIndicator.classList.add('visible');
-                setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
-            } else if (tapPositionX > rect.width * 0.65) {
-                player.forward(10);
-                forwardIndicator.classList.add('visible');
-                setTimeout(() => forwardIndicator.classList.remove('visible'), 500);
-            } else {
-                player.fullscreen.toggle();
-            }
-            lastTapTime = 0;
-        } else {
-            tapTimeout = setTimeout(() => { player.togglePlay(); }, DOUBLE_TAP_DELAY);
-        }
-        lastTapTime = currentTime;
-    });
-    const styles = `.skip-indicator{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);color:#fff;padding:15px 25px;border-radius:50px;font-family:'Josefin Sans',sans-serif;font-size:1.2em;opacity:0;transition:opacity .3s ease-out;pointer-events:none;display:flex;flex-direction:column;align-items:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}.skip-indicator.visible{opacity:1}.skip-indicator .arrows{font-size:2.5em;line-height:1;font-weight:700}.skip-indicator-rewind{left:10%}.skip-indicator-forward{right:10%}`;
-    const styleSheet = document.createElement("style");
-    styleSheet.innerText = styles;
-    document.head.appendChild(styleSheet);
-}
-
-// === ප්‍රධාන Function එක: Player එක හදා, Subtitles Fetch කරන තැන (අවසානම නිවැරදි කිරීම) ===
-async function initializePlayer() {
-    try {
-        const videoElement = document.getElementById('player');
-        if (!videoElement) { console.error("Video element not found."); return; }
-
-        const fileName = videoElement.getAttribute('data-filename');
-        const fileUrl = videoElement.getAttribute('data-fileurl');
-        if (!fileName || !fileUrl) { console.error("File metadata not found."); return; }
-
-        const player = new Plyr(videoElement, {
-            captions: { active: true, update: true, language: 'auto' }
-        });
-
-        const tracks = [];
-        if (fileName.toLowerCase().endsWith('.mkv')) {
+    <!-- === Plyr.js நூலகය සහ අපගේ අවසන් වරට නිවැරදි කළ Script එක === -->
+    <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
+    <script>
+        async function initializePlayer() {
             try {
-                const pathParts = window.location.pathname.split('/');
-                const db_id = pathParts[pathParts.length - 1];
-                const subtitleListUrl = `/subtitles/${db_id}`;
-                const response = await fetch(subtitleListUrl);
+                const videoElement = document.getElementById('player');
+                if (!videoElement) { console.error("Video element not found."); return; }
 
-                if (response.ok) {
-                    const subtitleStreams = await response.json();
-                    if (subtitleStreams && Array.isArray(subtitleStreams) && subtitleStreams.length > 0) {
-                        console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
-                        subtitleStreams.forEach((stream, index) => {
-                            const subtitleUrl = `/subtitle/${db_id}/${stream.index}`;
-                            tracks.push({
-                                kind: 'subtitles',
-                                label: stream.tags?.title || stream.tags?.language || `Subtitle ${index + 1}`,
-                                srclang: stream.tags?.language?.substring(0, 2) || `en${index}`,
-                                src: subtitleUrl,
-                                default: index === 0
-                            });
-                        });
-                    } else {
-                        console.log("උපසිරැසි පථ කිසිවක් හමු නොවීය.");
-                    }
+                const fileName = videoElement.getAttribute('data-filename');
+                const fileUrl = videoElement.getAttribute('data-fileurl');
+                if (!fileName || !fileUrl) { console.error("File metadata not found."); return; }
+
+                const player = new Plyr(videoElement, {
+                    captions: { active: true, update: true, language: 'auto' }
+                });
+
+                const tracks = [];
+                if (fileName.toLowerCase().endsWith('.mkv')) {
+                    try {
+                        const pathParts = window.location.pathname.split('/');
+                        const db_id = pathParts[pathParts.length - 1];
+                        const subtitleListUrl = `/subtitles/${db_id}`;
+                        const response = await fetch(subtitleListUrl);
+
+                        if (response.ok) {
+                            const subtitleStreams = await response.json();
+                            if (subtitleStreams && Array.isArray(subtitleStreams) && subtitleStreams.length > 0) {
+                                console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
+                                subtitleStreams.forEach((stream, index) => {
+                                    const subtitleUrl = `/subtitle/${db_id}/${stream.index}`;
+                                    tracks.push({
+                                        kind: 'subtitles',
+                                        label: stream.tags?.title || stream.tags?.language || `Subtitle ${index + 1}`,
+                                        srclang: stream.tags?.language?.substring(0, 2) || `en${index}`,
+                                        src: subtitleUrl,
+                                        default: index === 0
+                                    });
+                                });
+                            }
+                        }
+                    } catch (error) { console.error("Error fetching subtitles:", error); }
                 }
-            } catch (error) { console.error("Error fetching subtitles:", error); }
-        }
-        
-        // --- මෙන්න අවසානම සහ වැදගත්ම වෙනස ---
-        // 'type' attribute එක ඉවත් කර, browser එකටම වීඩියෝ වර්ගය හඳුනාගන්න ඉඩ දීම.
-        player.source = {
-            type: 'video',
-            title: fileName,
-            sources: [{
-                src: fileUrl 
-                // type: 'video/mp4' <-- මෙම පේළිය ඉවත් කිරීම තමයි විසඳුම!
-            }],
-            tracks: tracks
-        };
-        // ------------------------------------
+                
+                player.source = {
+                    type: 'video',
+                    title: fileName,
+                    sources: [{ src: fileUrl }],
+                    tracks: tracks
+                };
 
-        player.on('ready', () => {
-            setupPlayerFeatures(player);
-            console.log("Player is ready and source is set!");
+            } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Plyr !== 'undefined') {
+                initializePlayer();
+            } else {
+                console.error('Plyr.js is not loaded.');
+            }
         });
-        
-        const heading = document.getElementById('heading');
-        if (heading) {
-            heading.textContent = 'POP Tv One';
-            heading.style.visibility = 'visible';
-        }
-
-    } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof Plyr !== 'undefined') {
-        initializePlayer();
-    } else {
-        console.error('Plyr.js is not loaded.');
-    }
-});
-</script>
+    </script>
+</body>
 </html>
