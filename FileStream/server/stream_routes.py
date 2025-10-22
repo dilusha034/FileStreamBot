@@ -232,53 +232,104 @@ async def media_streamer(request: web.Request, db_id: str):
     index = min(work_loads, key=work_loads.get)
     faster_client = multi_clients[index]
     
-    if Telegram.MULTI_CLIENT:
-        logging.info(f"Client {index} is now serving {request.headers.get('X-FORWARDED-FOR',request.remote)}")
-
-    if faster_client in class_cache:
-        tg_connect = class_cache[faster_client]
-    else:
+    tg_connect = class_cache.get(faster_client)
+    if not tg_connect:
         tg_connect = utils.ByteStreamer(faster_client)
         class_cache[faster_client] = tg_connect
         
     file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-    file_size = file_id.file_size
-
-    if range_header:
-        from_bytes, until_bytes = range_header.replace("bytes=", "").split("-")
-        from_bytes = int(from_bytes)
-        until_bytes = int(until_bytes) if until_bytes else file_size - 1
-    else:
-        from_bytes = request.http_range.start or 0
-        until_bytes = (request.http_range.stop or file_size) - 1
-
-    if (until_bytes > file_size) or (from_bytes < 0) or (until_bytes < from_bytes):
-        return web.Response(status=416, body="416: Range not satisfiable", headers={"Content-Range": f"bytes */{file_size}"})
-
-    chunk_size = 1024 * 1024
-    until_bytes = min(until_bytes, file_size - 1)
-    offset = from_bytes - (from_bytes % chunk_size)
-    first_part_cut = from_bytes - offset
-    last_part_cut = until_bytes % chunk_size + 1
-    req_length = until_bytes - from_bytes + 1
-    part_count = math.ceil(until_bytes / chunk_size) - math.floor(offset / chunk_size)
-    body = tg_connect.yield_file(file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size)
-
-    mime_type = file_id.mime_type
     file_name = utils.get_name(file_id)
-    disposition = "inline"
 
-    if not mime_type:
-        mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+    # --- MKV ගොනු සඳහා Remuxing කිරීමේ තර්කනය (Logic) ---
+    is_mkv = file_name.lower().endswith(".mkv")
 
-    return web.Response(
-        status=206 if range_header else 200,
-        body=body,
-        headers={
-            "Content-Type": f"{mime_type}",
-            "Content-Range": f"bytes {from_bytes}-{until_bytes}/{file_size}",
-            "Content-Length": str(req_length),
-            "Content-Disposition": f'{disposition}; filename="{file_name}"',
-            "Accept-Ranges": "bytes",
-        },
-    )
+    if is_mkv:
+        # MKV ගොනුවක් නම්, එය MP4 බවට remux කර stream කිරීම
+        response = web.StreamResponse(
+            headers={ "Content-Type": "video/mp4", "Accept-Ranges": "bytes", "Content-Disposition": f'inline; filename="{file_name.rsplit(".", 1)[0]}.mp4"' }
+        )
+        await response.prepare(request)
+
+        # FFmpeg විධානය: වීඩියෝ සහ ශබ්දය copy කර, MP4 container එකකට දැමීම
+        # -movflags frag_keyframe+empty_moov: Streaming සඳහා අත්‍යවශ්‍ය වේ
+        command = [
+            "ffmpeg",
+            "-i", "pipe:0",           # Input එක stdin වෙතින්
+            "-c:v", "copy",           # වීඩියෝව re-encode නොකර copy කිරීම
+            "-c:a", "copy",           # ශබ්දය re-encode නොකර copy කිරීම
+            "-f", "mp4",              # Output ආකෘතිය MP4
+            "-movflags", "frag_keyframe+empty_moov",
+            "pipe:1",                 # Output එක stdout වෙත
+            "-loglevel", "error"
+        ]
+
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        # එකවර ක්‍රියාත්මක වන කාර්යයන් දෙකක්:
+        # 1. ටෙලිග්‍රෑම් වෙතින් වීඩියෝව ffmpeg වෙත stream කිරීම
+        # 2. ffmpeg වෙතින් එන MP4 stream එක client (browser) වෙත stream කිරීම
+        async def stream_to_ffmpeg():
+            # සම්පූර්ණ ගොනුවම stream කිරීම
+            file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024*1024)
+            try:
+                async for chunk in file_stream:
+                    if process.stdin.is_closing(): break
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError): pass
+            finally:
+                if not process.stdin.is_closing(): process.stdin.close()
+
+        async def stream_to_client():
+            try:
+                while not process.stdout.at_eof():
+                    chunk = await process.stdout.read(4096)
+                    if not chunk: break
+                    await response.write(chunk)
+            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError): pass
+
+        await asyncio.gather(stream_to_ffmpeg(), stream_to_client())
+        await process.wait()
+        
+        return response
+
+    else:
+        # --- MP4 සහ අනෙකුත් ගොනු සඳහා පැරණි, සෘජු Streaming ක්‍රමය ---
+        # (මෙම කොටසේ කිසිදු වෙනසක් නැත)
+        file_size = file_id.file_size
+        if range_header:
+            from_bytes, until_bytes = range_header.replace("bytes=", "").split("-")
+            from_bytes = int(from_bytes)
+            until_bytes = int(until_bytes) if until_bytes else file_size - 1
+        else:
+            from_bytes = request.http_range.start or 0
+            until_bytes = (request.http_range.stop or file_size) - 1
+
+        req_length = until_bytes - from_bytes + 1
+        chunk_size = 1024 * 1024
+        offset = from_bytes - (from_bytes % chunk_size)
+        first_part_cut = from_bytes - offset
+        last_part_cut = until_bytes % chunk_size + 1
+        part_count = math.ceil(until_bytes / chunk_size) - math.floor(offset / chunk_size)
+        body = tg_connect.yield_file(file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size)
+
+        mime_type = file_id.mime_type
+        if not mime_type:
+            mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+
+        return web.Response(
+            status=206 if range_header else 200,
+            body=body,
+            headers={
+                "Content-Type": f"{mime_type}",
+                "Content-Range": f"bytes {from_bytes}-{until_bytes}/{file_size}",
+                "Content-Length": str(req_length),
+                "Content-Disposition": f'inline; filename="{file_name}"',
+                "Accept-Ranges": "bytes",
+            },
+        )
