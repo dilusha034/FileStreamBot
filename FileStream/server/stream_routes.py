@@ -124,6 +124,91 @@ async def subtitles_handler(request: web.Request):
         logging.error(f"Subtitle probing failed critically: {e}\n{error_trace}")
         return web.json_response({"error": f"Server exception: {str(e)}"}, status=500)
 
+# --- උපසිරැසි පථය (Subtitle Track) ලබා දීමේ නව Route එක ---
+# FileStream/server/stream_routes.py ගොනුවට මෙය එක් කරන්න
+
+@routes.get("/subtitle/{db_id}/{index}")
+async def subtitle_handler(request: web.Request):
+    try:
+        db_id = request.match_info['db_id']
+        stream_index = request.match_info['index']
+
+        # Download එක සඳහා වේගවත්ම client තෝරා ගැනීම
+        work_load_index = min(work_loads, key=work_loads.get)
+        faster_client = multi_clients[work_load_index]
+        
+        tg_connect = class_cache.get(faster_client)
+        if not tg_connect:
+            tg_connect = utils.ByteStreamer(faster_client)
+            class_cache[faster_client] = tg_connect
+
+        file_id = await tg_connect.get_file_properties(db_id, multi_clients)
+        
+        # FFmpeg විධානය: නිශ්චිත උපසිරැසි පථය ගෙන එය VTT බවට පරිවර්තනය කිරීම
+        command = [
+            "ffmpeg",
+            "-i", "pipe:0",               # Input එක stdin (standard input) වෙතින් ලබාගන්න
+            "-map", f"0:{stream_index}",  # ලබාදුන් index එකට අදාල stream එක තෝරන්න
+            "-f", "webvtt",               # ආකෘතිය WebVTT ලෙස සකසන්න
+            "-",                          # Output එක stdout (standard output) වෙත යවන්න
+            "-loglevel", "error"          # දෝෂ පමණක් ලොග් කරන්න
+        ]
+
+        # ffmpeg ක්‍රියාවලිය ආරම්භ කිරීම
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        # Streaming response එකක් සැකසීම
+        response = web.StreamResponse(
+            headers={ "Content-Type": "text/vtt", "Cache-Control": "max-age=3600" }
+        )
+        await response.prepare(request)
+        
+        # එකවර ක්‍රියාත්මක වන කාර්යයන් දෙකක්:
+        # 1. ටෙලිග්‍රෑම් වෙතින් වීඩියෝව ffmpeg වෙත stream කිරීම
+        # 2. ffmpeg වෙතින් එන VTT උපසිරැසිය client (browser) වෙත stream කිරීම
+        
+        async def stream_video_to_ffmpeg():
+            file_stream = tg_connect.yield_file(file_id, work_load_index, 0, 0, 0, 0, 1024*1024)
+            try:
+                async for chunk in file_stream:
+                    if process.stdin.is_closing(): break
+                    try:
+                        process.stdin.write(chunk)
+                        await process.stdin.drain()
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+            except (asyncio.CancelledError, ConnectionResetError):
+                pass
+            finally:
+                if not process.stdin.is_closing():
+                    process.stdin.close()
+
+        async def stream_subtitle_to_client():
+            try:
+                while not process.stdout.at_eof():
+                    chunk = await process.stdout.read(1024)
+                    if not chunk: break
+                    try:
+                        await response.write(chunk)
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+            except (asyncio.CancelledError, ConnectionResetError):
+                pass
+
+        await asyncio.gather(stream_video_to_ffmpeg(), stream_subtitle_to_client())
+
+        await process.wait()
+        return response
+
+    except Exception:
+        logging.error(f"Subtitle handler failed critically: {traceback.format_exc()}")
+        raise web.HTTPInternalServerError(text="Failed to process subtitle.")
+
 # --- Video/File Download Route එක ---
 @routes.get("/dl/{path}", allow_head=True)
 async def download_handler(request: web.Request):
