@@ -1,26 +1,3 @@
-# FileStream/server/stream_routes.py
-
-@routes.get("/watch/{path}", allow_head=True)
-async def watch_handler(request: web.Request):
-    try:
-        path = request.match_info["path"]
-        # මෙතන request එක render_page function එකට pass කරනවා
-        return web.Response(text=await render_page(path, request), content_type='text/html')
-    except InvalidHash as e:
-        raise web.HTTPForbidden(text=e.message)
-    except FIleNotFound as e:
-        raise web.HTTPNotFound(text=e.message)```
-
-### 2 වන කොටස: `render_template.py` ගොනුව නිවැරදි කිරීම
-
-දැන් තමයි අපි ගැටළුවේ මුලටම ගිහින් `http://` URL එක ජනනය වීම නවත්වන්නේ. ඔබට `FileStream/utils/render_template.py` නමින් ගොනුවක් තිබිය යුතුයි. එහි ඇති `render_page` function එක සම්පූර්ණයෙන්ම පහත කේතයෙන් ප්‍රතිස්ථාපනය කරන්න.
-
-**ක්‍රියාමාර්ගය:**
-ඔබගේ `FileStream/utils/render_template.py` ගොනුවේ ඇති සම්පූර්ණ කේතය ඉවත් කර, ඒ වෙනුවට පහත කේතය ඇතුළත් කරන්න.
-
-```python
-# FileStream/utils/render_template.py ගොනුවට මෙම සම්පූර්ණ කේතය යොදන්න
-
 import os
 from aiohttp.web import Request
 from FileStream.config import Telegram
