@@ -222,7 +222,7 @@ async function initializePlayer() {
                             tracks.push({
                                 kind: 'subtitles',
                                 label: stream.tags?.title || `Track ${tracks.length + 1}`,
-                                srclang: stream.tags?.language || `en${tracks.length}`,
+                                srclang: stream.tags?.language || `lang${tracks.length + 1}`,
                                 src: subtitleUrl,
                                 default: tracks.length === 0
                             });
