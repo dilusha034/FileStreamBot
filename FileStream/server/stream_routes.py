@@ -41,7 +41,8 @@ async def status_handler(_):
 async def watch_handler(request: web.Request):
     try:
         path = request.match_info["path"]
-        return web.Response(text=await render_page(path), content_type='text/html')
+        # මෙතන request එක render_page function එකට pass කරනවා
+        return web.Response(text=await render_page(path, request), content_type='text/html')
     except InvalidHash as e:
         raise web.HTTPForbidden(text=e.message)
     except FIleNotFound as e:
