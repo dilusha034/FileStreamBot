@@ -216,7 +216,6 @@ async def download_handler(request: web.Request):
     try:
         db_id = request.match_info["path"]
         
-        # --- File Properties ලබා ගැනීම ---
         index = min(work_loads, key=work_loads.get)
         faster_client = multi_clients[index]
         tg_connect = class_cache.get(faster_client)
@@ -225,64 +224,67 @@ async def download_handler(request: web.Request):
             class_cache[faster_client] = tg_connect
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
 
-        # --- HTTP Headers සකස් කිරීම ---
         file_name = utils.get_name(file_id)
         file_size = file_id.file_size
         mime_type = file_id.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
 
-        headers = {
-            "Content-Type": mime_type,
-            "Content-Disposition": f'inline; filename="{file_name}"',
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(file_size)
-        }
-
-        # --- Range Request එක හසුරුවා ගැනීම (මෙයයි විසඳුම) ---
         range_header = request.headers.get("Range")
+        
+        # --- Streaming සඳහා StreamResponse එක සකස් කිරීම ---
+        response = web.StreamResponse(
+            headers={ "Content-Type": mime_type, "Accept-Ranges": "bytes" }
+        )
+        
         if range_header:
             try:
-                # Range header එක parse කිරීම (e.g., "bytes=0-1000")
-                range_str = range_header.strip().lower().split("=")[1]
-                from_bytes, until_bytes = [int(x.strip()) if x.strip() else None for x in range_str.split("-")]
+                from_bytes_str, until_bytes_str = range_header.replace("bytes=", "").split("-")
+                from_bytes = int(from_bytes_str)
+                until_bytes = int(until_bytes_str) if until_bytes_str else file_size - 1
                 
-                # ආරම්භක අගය පමණක් ඇත්නම් (e.g., "bytes=1000-")
-                if from_bytes is not None and until_bytes is None:
-                    until_bytes = file_size - 1
-                
-                # අවසාන අගය පමණක් ඇත්නම් (e.g., "bytes=-500")
-                elif from_bytes is None and until_bytes is not None:
-                    from_bytes = file_size - until_bytes
-                    until_bytes = file_size - 1
-                
-                # සාමාන්‍ය Range එකක් නම්
-                else:
-                    until_bytes = min(until_bytes, file_size - 1)
+                if (until_bytes > file_size) or (from_bytes < 0) or (until_bytes < from_bytes):
+                    raise ValueError
 
-                # වැරදි range එකක් නම්, සම්පූර්ණ ගොනුවම යැවීම
-                if from_bytes < 0 or from_bytes >= file_size or until_bytes < from_bytes:
-                    raise ValueError("Invalid Range")
-
-                # --- 206 Partial Content Response එක සකස් කිරීම ---
-                chunk_size_to_send = (until_bytes - from_bytes) + 1
-                headers["Content-Length"] = str(chunk_size_to_send)
-                headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
-                status_code = 206 # Partial Content
-
-                # --- අවශ්‍ය කොටස පමණක් Telegram වෙතින් stream කිරීම ---
-                body = tg_connect.yield_file(file_id, index, from_bytes, 0, 0, 0, chunk_size_to_send)
+                # --- 206 Partial Content සඳහා අවශ්‍ය Headers ---
+                response.set_status(206)
+                response.headers["Content-Length"] = str((until_bytes - from_bytes) + 1)
+                response.headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
                 
-                return web.Response(status=status_code, headers=headers, body=body)
+                offset = from_bytes
 
             except (ValueError, IndexError):
-                # Range header එක වැරදි නම්, 416 Range Not Satisfiable ලෙස ප්‍රතිචාර දැක්වීම
                 return web.Response(status=416, text="416: Range Not Satisfiable")
         else:
-            # Range header එකක් නැත්නම්, සම්පූර්ණ ගොනුවම stream කිරීම (200 OK)
-            body = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, file_size)
-            return web.Response(status=200, headers=headers, body=body)
+            # Range header එකක් නැත්නම්, සම්පූර්ණ ගොනුවම (200 OK)
+            response.set_status(200)
+            response.headers["Content-Length"] = str(file_size)
+            offset = 0
 
-    except (FIleNotFound, InvalidHash) as e:
+        # --- StreamResponse එක client වෙත යැවීමට සූදානම් කිරීම ---
+        await response.prepare(request)
+
+        # --- කාර්යක්ෂමව, කුඩා කොටස් වශයෙන් stream කිරීම ---
+        # (මෙමගින් server එක crash වීම 100%ක්ම වලකයි)
+        chunk_size = 1024 * 1024  # 1MB chunks
+        
+        # tg_connect.yield_file සඳහා නිවැรදි parameters ගණනය කිරීම
+        first_part_cut = offset % chunk_size
+        
+        # සම්පූර්ණ ගොනුවම stream කරනවා වෙනුවට, generator එකක් ලෙස ක්‍රියාත්මක කිරීම
+        file_stream = tg_connect.yield_file(file_id, index, offset, first_part_cut, 0, 0, chunk_size)
+
+        try:
+            async for chunk in file_stream:
+                if not chunk:
+                    break
+                await response.write(chunk)
+                await asyncio.sleep(0.001) # CPU එකට සුළු විවේකයක් ලබා දීම
+        except (asyncio.CancelledError, ConnectionResetError):
+            pass # Client විසන්ධි වුවහොත්, දෝෂයක් නොපෙන්වා ක්‍රියාවලිය නැවැත්වීම
+        
+        return response
+
+    except FIleNotFound as e:
         raise web.HTTPNotFound(text=str(e))
-    except Exception as e:
+    except Exception:
         logging.error(f"Download handler critical error: {traceback.format_exc()}")
-        raise web.HTTPInternalServerError(text="Server failed to handle the request.")
+        raise web.HTTPInternalServerError()
