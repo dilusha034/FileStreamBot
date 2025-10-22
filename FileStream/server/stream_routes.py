@@ -210,100 +210,79 @@ async def subtitle_handler(request: web.Request):
         logging.error(f"Subtitle handler failed critically: {traceback.format_exc()}")
         raise web.HTTPInternalServerError(text="Failed to process subtitle.")
 
-# --- Video/File Download Route එක ---
+# FileStream/server/stream_routes.py ගොනුවට මෙය යොදන්න
 @routes.get("/dl/{path}", allow_head=True)
 async def download_handler(request: web.Request):
     try:
-        return await media_streamer(request, request.match_info["path"])
-    except InvalidHash as e:
-        raise web.HTTPForbidden(text=e.message)
-    except FIleNotFound as e:
-        raise web.HTTPNotFound(text=e.message)
-    except (AttributeError, BadStatusLine, ConnectionResetError):
-        pass
-    except Exception as e:
-        logging.critical(traceback.format_exc())
-        raise web.HTTPInternalServerError(text=str(e))
+        db_id = request.match_info["path"]
+        
+        # --- File Properties ලබා ගැනීම ---
+        index = min(work_loads, key=work_loads.get)
+        faster_client = multi_clients[index]
+        tg_connect = class_cache.get(faster_client)
+        if not tg_connect:
+            tg_connect = utils.ByteStreamer(faster_client)
+            class_cache[faster_client] = tg_connect
+        file_id = await tg_connect.get_file_properties(db_id, multi_clients)
 
-# --- Media Streamer (Core Logic) ---
-async def media_streamer(request: web.Request, db_id: str):
-    # --- මෙම කොටසේ කිසිදු වෙනසක් නැත ---
-    range_header = request.headers.get("Range", 0)
-    index = min(work_loads, key=work_loads.get)
-    faster_client = multi_clients[index]
-    tg_connect = class_cache.get(faster_client)
-    if not tg_connect:
-        tg_connect = utils.ByteStreamer(faster_client)
-        class_cache[faster_client] = tg_connect
-    file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-    file_name = utils.get_name(file_id)
-    is_mkv = file_name.lower().endswith(".mkv")
-
-    # --- MKV ගොනු සඳහා වන කොටස ---
-    if is_mkv:
-        response = web.StreamResponse(
-            status=200, # 206 වෙනුවට 200 ලෙස status එක යැවීම
-            headers={ 
-                "Content-Type": "video/mp4", 
-                # "Accept-Ranges: bytes" යන පේළිය සම්පූර්ණයෙන්ම ඉවත් කර ඇත.
-                "Content-Disposition": f'inline; filename="{file_name.rsplit(".", 1)[0]}.mp4"' 
-            }
-        )
-        await response.prepare(request)
-        command = [
-            "ffmpeg", "-i", "pipe:0", "-c:v", "copy", "-c:a", "copy",
-            "-f", "mp4", "-movflags", "frag_keyframe+empty_moov", "pipe:1",
-            "-loglevel", "error"
-        ]
-        process = await asyncio.create_subprocess_exec(
-            *command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        async def stream_to_ffmpeg():
-            file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024*1024)
-            try:
-                async for chunk in file_stream:
-                    if process.stdin.is_closing(): break
-                    process.stdin.write(chunk)
-                    await process.stdin.drain()
-            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError): pass
-            finally:
-                if not process.stdin.is_closing(): process.stdin.close()
-        async def stream_to_client():
-            try:
-                while not process.stdout.at_eof():
-                    chunk = await process.stdout.read(4096)
-                    if not chunk: break
-                    await response.write(chunk)
-            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError): pass
-        await asyncio.gather(stream_to_ffmpeg(), stream_to_client())
-        await process.wait()
-        return response
-
-    # --- MP4 සහ අනෙකුත් ගොනු සඳහා වන කොටස (කිසිදු වෙනසක් නැත) ---
-    else:
+        # --- HTTP Headers සකස් කිරීම ---
+        file_name = utils.get_name(file_id)
         file_size = file_id.file_size
+        mime_type = file_id.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+
+        headers = {
+            "Content-Type": mime_type,
+            "Content-Disposition": f'inline; filename="{file_name}"',
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size)
+        }
+
+        # --- Range Request එක හසුරුවා ගැනීම (මෙයයි විසඳුම) ---
+        range_header = request.headers.get("Range")
         if range_header:
-            from_bytes, until_bytes = range_header.replace("bytes=", "").split("-")
-            from_bytes = int(from_bytes)
-            until_bytes = int(until_bytes) if until_bytes else file_size - 1
+            try:
+                # Range header එක parse කිරීම (e.g., "bytes=0-1000")
+                range_str = range_header.strip().lower().split("=")[1]
+                from_bytes, until_bytes = [int(x.strip()) if x.strip() else None for x in range_str.split("-")]
+                
+                # ආරම්භක අගය පමණක් ඇත්නම් (e.g., "bytes=1000-")
+                if from_bytes is not None and until_bytes is None:
+                    until_bytes = file_size - 1
+                
+                # අවසාන අගය පමණක් ඇත්නම් (e.g., "bytes=-500")
+                elif from_bytes is None and until_bytes is not None:
+                    from_bytes = file_size - until_bytes
+                    until_bytes = file_size - 1
+                
+                # සාමාන්‍ය Range එකක් නම්
+                else:
+                    until_bytes = min(until_bytes, file_size - 1)
+
+                # වැරදි range එකක් නම්, සම්පූර්ණ ගොනුවම යැවීම
+                if from_bytes < 0 or from_bytes >= file_size or until_bytes < from_bytes:
+                    raise ValueError("Invalid Range")
+
+                # --- 206 Partial Content Response එක සකස් කිරීම ---
+                chunk_size_to_send = (until_bytes - from_bytes) + 1
+                headers["Content-Length"] = str(chunk_size_to_send)
+                headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
+                status_code = 206 # Partial Content
+
+                # --- අවශ්‍ය කොටස පමණක් Telegram වෙතින් stream කිරීම ---
+                body = tg_connect.yield_file(file_id, index, from_bytes, 0, 0, 0, chunk_size_to_send)
+                
+                return web.Response(status=status_code, headers=headers, body=body)
+
+            except (ValueError, IndexError):
+                # Range header එක වැරදි නම්, 416 Range Not Satisfiable ලෙස ප්‍රතිචාර දැක්වීම
+                return web.Response(status=416, text="416: Range Not Satisfiable")
         else:
-            from_bytes = request.http_range.start or 0
-            until_bytes = (request.http_range.stop or file_size) - 1
-        req_length = until_bytes - from_bytes + 1
-        chunk_size = 1024 * 1024
-        offset = from_bytes - (from_bytes % chunk_size)
-        first_part_cut = from_bytes - offset
-        last_part_cut = until_bytes % chunk_size + 1
-        part_count = math.ceil(until_bytes / chunk_size) - math.floor(offset / chunk_size)
-        body = tg_connect.yield_file(file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size)
-        mime_type = file_id.mime_type
-        if not mime_type:
-            mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-        return web.Response(
-            status=206 if range_header else 200, body=body,
-            headers={
-                "Content-Type": f"{mime_type}", "Content-Range": f"bytes {from_bytes}-{until_bytes}/{file_size}",
-                "Content-Length": str(req_length), "Content-Disposition": f'inline; filename="{file_name}"',
-                "Accept-Ranges": "bytes",
-            },
-        )
+            # Range header එකක් නැත්නම්, සම්පූර්ණ ගොනුවම stream කිරීම (200 OK)
+            body = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, file_size)
+            return web.Response(status=200, headers=headers, body=body)
+
+    except (FIleNotFound, InvalidHash) as e:
+        raise web.HTTPNotFound(text=str(e))
+    except Exception as e:
+        logging.error(f"Download handler critical error: {traceback.format_exc()}")
+        raise web.HTTPInternalServerError(text="Server failed to handle the request.")
