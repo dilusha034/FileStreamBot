@@ -230,56 +230,62 @@ async def download_handler(request: web.Request):
 
         range_header = request.headers.get("Range")
         
-        # --- Streaming සඳහා StreamResponse එක සකස් කිරීම ---
         response = web.StreamResponse(
             headers={ "Content-Type": mime_type, "Accept-Ranges": "bytes" }
         )
-        
+
+        from_bytes = 0
+        until_bytes = file_size -1
+
         if range_header:
             try:
                 from_bytes_str, until_bytes_str = range_header.replace("bytes=", "").split("-")
                 from_bytes = int(from_bytes_str)
                 until_bytes = int(until_bytes_str) if until_bytes_str else file_size - 1
                 
-                if (until_bytes > file_size) or (from_bytes < 0) or (until_bytes < from_bytes):
+                if (until_bytes >= file_size) or (from_bytes < 0) or (until_bytes < from_bytes):
                     raise ValueError
-
-                # --- 206 Partial Content සඳහා අවශ්‍ය Headers ---
-                response.set_status(206)
-                response.headers["Content-Length"] = str((until_bytes - from_bytes) + 1)
-                response.headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
                 
-                offset = from_bytes
-
+                response.set_status(206)
+                response.headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
+            
             except (ValueError, IndexError):
                 return web.Response(status=416, text="416: Range Not Satisfiable")
         else:
-            # Range header එකක් නැත්නම්, සම්පූර්ණ ගොනුවම (200 OK)
             response.set_status(200)
-            response.headers["Content-Length"] = str(file_size)
-            offset = 0
 
-        # --- StreamResponse එක client වෙත යැවීමට සූදානම් කිරීම ---
+        req_length = (until_bytes - from_bytes) + 1
+        response.headers["Content-Length"] = str(req_length)
+
+        # --- මෙන්න අවසානම සහ නිවැරදිම ගණනය කිරීම ---
+        # ඔබගේ yield_file function එකට ගැළපෙන ලෙස parameters සකස් කිරීම
+        chunk_size = 1024 * 1024
+        offset = from_bytes - (from_bytes % chunk_size)
+        first_part_cut = from_bytes - offset
+        last_part_cut = (until_bytes % chunk_size) + 1 if until_bytes % chunk_size != 0 else chunk_size
+        part_count = math.ceil((until_bytes - offset + 1) / chunk_size)
+        # -----------------------------------------------
+
+        # --- Streaming ක්‍රියාවලිය ---
         await response.prepare(request)
-
-        # --- කාර්යක්ෂමව, කුඩා කොටස් වශයෙන් stream කිරීම ---
-        # (මෙමගින් server එක crash වීම 100%ක්ම වලකයි)
-        chunk_size = 1024 * 1024  # 1MB chunks
         
-        # tg_connect.yield_file සඳහා නිවැรදි parameters ගණනය කිරීම
-        first_part_cut = offset % chunk_size
-        
-        # සම්පූර්ණ ගොනුවම stream කරනවා වෙනුවට, generator එකක් ලෙස ක්‍රියාත්මක කිරීම
-        file_stream = tg_connect.yield_file(file_id, index, offset, first_part_cut, 0, 0, chunk_size)
+        file_stream = tg_connect.yield_file(
+            file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size
+        )
 
+        streamed_bytes = 0
         try:
             async for chunk in file_stream:
-                if not chunk:
-                    break
+                if streamed_bytes + len(chunk) > req_length:
+                    chunk = chunk[:req_length - streamed_bytes]
+                
                 await response.write(chunk)
-                await asyncio.sleep(0.001) # CPU එකට සුළු විවේකයක් ලබා දීම
+                streamed_bytes += len(chunk)
+
+                if streamed_bytes >= req_length:
+                    break
         except (asyncio.CancelledError, ConnectionResetError):
-            pass # Client විසන්ධි වුවහොත්, දෝෂයක් නොපෙන්වා ක්‍රියාවලිය නැවැත්වීම
+            pass
         
         return response
 
