@@ -123,10 +123,12 @@
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
-<!-- === Operation Final Victory: THE TRUE FINAL CODE === -->
+<!-- === Operation Final Victory v2: THE DEFINITIVE CODE === -->
 <script>
 // === Player එකේ touch controls වැනි වැඩිදියුණු කිරීම් ටික මේ function එකට දැම්මා ===
 function setupPlayerFeatures(player) {
+    // ... (මෙම function එකේ කිසිදු වෙනසක් අවශ්‍ය නැත. පෙර පරිදිම තබන්න) ...
+    // ... (ඔබගේ github කේතයේ ඇති setupPlayerFeatures function එක මෙතනට පිටපත් කරන්න) ...
     if (!player || !player.elements || !player.elements.container) { return; }
 
     player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
@@ -190,77 +192,105 @@ function setupPlayerFeatures(player) {
     document.head.appendChild(styleSheet);
 }
 
-// === ප්‍රධාන Function එක: Player එක හදා, Subtitles Fetch කරන තැන ===
+
+// === ප්‍රධාන Function එක: Player එක හදා, Subtitles Fetch කරන තැන (වැඩි දියුණු කරන ලද) ===
 async function initializePlayer() {
     try {
         const videoElement = document.getElementById('player');
-        let fileName = videoElement.getAttribute('data-filename');
-        let fileUrl = videoElement.getAttribute('data-fileurl');
+        if (!videoElement) {
+            console.error("වීඩියෝ element එක සොයාගත නොහැක.");
+            return;
+        }
+
+        const fileName = videoElement.getAttribute('data-filename');
+        const fileUrl = videoElement.getAttribute('data-fileurl');
 
         if (!fileName || !fileUrl) {
             console.error("ගොනුවේ නම හෝ URL එක ලබා ගැනීමට නොහැකි විය.");
             return;
         }
 
-        // --- **මෙන්න ප්‍රධානම සහ අවසානම නිවැරදි කිරීම** ---
-        // 'Mixed Content' දෝෂය නැති කිරීමට URL එක HTTPS වලට හැරවීම
-        if (fileUrl.startsWith('http://')) {
-            fileUrl = fileUrl.replace('http://', 'https://');
-        }
+        // --- 1. පළමුව, හිස් Player Instance එකක් සාදා ගැනීම ---
+        const player = new Plyr(videoElement, {
+            captions: { active: true, update: true, language: 'auto' }
+        });
 
         const tracks = [];
+        
+        // --- 2. MKV ගොනුවක් නම්, උපසිරැසි Fetch කර ගැනීම ---
         if (fileName.toLowerCase().endsWith('.mkv')) {
             try {
-                let subtitleListUrl = window.location.pathname.replace('/watch/', '/subtitles/');
-                
+                // db_id එක URL එකෙන් ලබා ගැනීම
+                const pathParts = window.location.pathname.split('/');
+                const db_id = pathParts[pathParts.length - 1];
+                const subtitleListUrl = `/subtitles/${db_id}`;
+
                 const response = await fetch(subtitleListUrl);
                 if (response.ok) {
                     const subtitleStreams = await response.json();
-                    if (subtitleStreams && subtitleStreams.length > 0) {
-                        subtitleStreams.forEach((stream) => {
-                            let subtitleUrl = window.location.pathname.replace('/watch/', '/subtitle/') + '/' + stream.index;
+                    
+                    if (subtitleStreams && Array.isArray(subtitleStreams) && subtitleStreams.length > 0) {
+                        console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
+                        subtitleStreams.forEach((stream, index) => {
+                            // අප කලින් සෑදූ /subtitle/{db_id}/{index} route එකට අදාලව URL එක සකස් කිරීම
+                            const subtitleUrl = `/subtitle/${db_id}/${stream.index}`;
+                            
                             tracks.push({
                                 kind: 'subtitles',
-                                label: stream.tags?.title || `Track ${tracks.length + 1}`,
-                                srclang: stream.tags?.language || `lang${tracks.length + 1}`,
+                                // උපසිරැසියේ නම සහ භාෂාව ලබා දීම
+                                label: stream.tags?.title || stream.tags?.language || `Subtitle ${index + 1}`,
+                                srclang: stream.tags?.language?.substring(0, 2) || `en${index}`,
                                 src: subtitleUrl,
-                                default: tracks.length === 0
+                                // පළමු උපසිරැසිය default ලෙස තේරීම
+                                default: index === 0 
                             });
                         });
+                    } else {
+                        console.log("උපසිරැසි පථ කිසිවක් හමු නොවීය.");
                     }
                 }
-            } catch (error) { console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error); }
+            } catch (error) {
+                console.error("උපසිරැසි fetch කිරීමේදී දෝෂයක් ඇතිවිය:", error);
+            }
         }
 
-        const player = new Plyr(videoElement, {
-            captions: { active: true, update: true }
-        });
-
+        // --- 3. අවසානයේ, වීඩියෝව සහ උපසිරැසි දෙකම එකවර Player එකට ලබා දීම ---
         player.source = {
             type: 'video',
             title: fileName,
-            sources: [{ src: fileUrl, type: 'video/mp4' }],
-            tracks: tracks
+            sources: [{
+                src: fileUrl,
+                type: 'video/mp4' // Browser එකට file type එක ගැන ඉඟියක් දීම
+            }],
+            tracks: tracks // සාදාගත් උපසිරැසි ලැයිස්තුව මෙතනින් ලබා දීම
         };
 
-        player.on('ready', () => {
+        // Player එක සූදානම් වූ පසු අනෙකුත් features (touch controls) එක් කිරීම
+        player.on('ready', event => {
             setupPlayerFeatures(player);
+            console.log("Player is ready!");
         });
 
+        // Heading එක දර්ශනය කරවීම
         const heading = document.getElementById('heading');
         if (heading) {
             heading.textContent = 'POP Tv One';
             heading.style.visibility = 'visible';
         }
 
-    } catch (error) { console.error("initializePlayer function එකේ දෝෂයක්:", error); }
+    } catch (error) {
+        console.error("initializePlayer function එකේ දෝෂයක්:", error);
+    }
 }
 
-const commandoInterval = setInterval(function() {
-    if (document.getElementById('player') && typeof Plyr !== 'undefined') {
-        clearInterval(commandoInterval);
+// DOM එක සම්පූර්ණයෙන්ම load වූ පසු Player එක initialize කිරීම
+document.addEventListener('DOMContentLoaded', () => {
+    // Plyr.js library එක load වී ඇත්දැයි තහවුරු කර ගැනීම
+    if (typeof Plyr !== 'undefined') {
         initializePlayer();
+    } else {
+        console.error('Plyr.js is not loaded.');
     }
-}, 100);
+});
 </script>
 </html>
