@@ -27,8 +27,8 @@
     </div>
 
     
-    <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
-   
+    <!-- FileStream/template/play.html -->
+
 <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script>
     async function initializePlayer() {
@@ -77,6 +77,20 @@
                 sources: [{ src: fileUrl }],
                 tracks: tracks
             };
+
+            // --- මෙන්න අවසානම, ජයග්‍රාහී වෙනස ---
+            // Console Error එක නිවැรදි කිරීම සඳහා වන කේතය
+            player.on('languagechange', () => {
+                setTimeout(() => {
+                    try {
+                        // This handles a bug in Plyr where the UI doesn't always update
+                        if (player.captions.active && player.captions.ui && player.captions.ui.buttons && player.captions.ui.buttons.language) {
+                            player.captions.ui.buttons.language.value = player.captions.language;
+                        }
+                    } catch (e) {
+                    }
+                }, 50);
+            });
 
         } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
     }
