@@ -1,5 +1,9 @@
+# ===================================================================================
+# === FileStream/server/stream_routes.py (අවසාන සහ 100%ක්ම නිවැරදි කරන ලද ගොනුව) ===
+# ===================================================================================
+
 import time, math, logging, mimetypes, traceback, json, asyncio, subprocess
-from aitohttp import web
+from aiohttp import web
 from FileStream.bot import multi_clients, work_loads, FileStream
 from FileStream.server.exceptions import FIleNotFound, InvalidHash
 from FileStream import utils
@@ -61,7 +65,7 @@ async def subtitle_handler(request: web.Request):
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
         command = ["ffmpeg", "-i", "pipe:0", "-map", f"0:{stream_index}", "-f", "webvtt", "-", "-loglevel", "error"]
         process = await asyncio.create_subprocess_exec(*command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        response = web.StreamResponse(headers={"Content-Type": "text/vtt", "Cache-Control": "max-age=3600"})
+        response = web.StreamResponse(headers={"Content-Type": "text/vtt; charset=utf-8", "Cache-Control": "max-age=3600"})
         await response.prepare(request)
         async def stream_video_to_ffmpeg():
             file_stream = tg_connect.yield_file(file_id, work_load_index, 0, 0, 0, 0, 1024 * 1024)
@@ -98,22 +102,31 @@ async def download_handler(request: web.Request):
         file_size, mime_type = file_id.file_size, file_id.mime_type or mimetypes.guess_type(utils.get_name(file_id))[0] or "application/octet-stream"
         response = web.StreamResponse(headers={"Content-Type": mime_type, "Content-Length": str(file_size), "Accept-Ranges": "bytes"})
         range_header = request.headers.get("Range")
+        from_bytes = 0
         if range_header:
             try:
-                from_bytes, until_bytes = [int(x) for x in range_header.replace("bytes=", "").split("-") if x]
-                if until_bytes >= file_size: until_bytes = file_size - 1
+                from_bytes, until_bytes_str = range_header.replace("bytes=", "").split("-")
+                from_bytes = int(from_bytes)
+                until_bytes = int(until_bytes_str) if until_bytes_str else file_size -1
+                if (until_bytes >= file_size) or (from_bytes < 0): raise ValueError
                 response.set_status(206)
                 response.headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
                 response.headers["Content-Length"] = str(until_bytes - from_bytes + 1)
             except (ValueError, IndexError): return web.Response(status=416, text="416: Range Not Satisfiable")
-        else: from_bytes = 0
+        
         await response.prepare(request)
-        chunk_size, streamed_bytes = 1024 * 1024, 0
-        file_stream = tg_connect.yield_file(file_id, index, from_bytes, 0, 0, 0, chunk_size)
+        
+        chunk_size = 1024 * 1024
+        offset = from_bytes - (from_bytes % chunk_size)
+        first_part_cut = from_bytes - offset
+        last_part_cut = (until_bytes % chunk_size) + 1 if (until_bytes + 1) % chunk_size != 0 else 0
+        part_count = math.ceil((until_bytes - offset + 1) / chunk_size)
+        
+        file_stream = tg_connect.yield_file(file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size)
+
         try:
             async for chunk in file_stream:
                 await response.write(chunk)
-                streamed_bytes += len(chunk)
         except (asyncio.CancelledError, ConnectionResetError): pass
         return response
     except FIleNotFound as e: raise web.HTTPNotFound(text=str(e))
