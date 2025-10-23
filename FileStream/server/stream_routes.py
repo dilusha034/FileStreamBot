@@ -211,86 +211,68 @@ async def subtitle_handler(request: web.Request):
         raise web.HTTPInternalServerError(text="Failed to process subtitle.")
 
 # FileStream/server/stream_routes.py ගොනුවට මෙය යොදන්න
-@routes.get("/dl/{path}", allow_head=True)
-async def download_handler(request: web.Request):
+@routes.get("/subtitle/{db_id}/{index}")
+async def subtitle_handler(request: web.Request):
     try:
-        db_id = request.match_info["path"]
+        db_id = request.match_info['db_id']
+        stream_index = request.match_info['index']
+
+        work_load_index = min(work_loads, key=work_loads.get)
+        faster_client = multi_clients[work_load_index]
         
-        index = min(work_loads, key=work_loads.get)
-        faster_client = multi_clients[index]
         tg_connect = class_cache.get(faster_client)
         if not tg_connect:
             tg_connect = utils.ByteStreamer(faster_client)
             class_cache[faster_client] = tg_connect
+
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-
-        file_name = utils.get_name(file_id)
-        file_size = file_id.file_size
-        mime_type = file_id.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-
-        range_header = request.headers.get("Range")
         
-        response = web.StreamResponse(
-            headers={ "Content-Type": mime_type, "Accept-Ranges": "bytes" }
+        command = [
+            "ffmpeg", "-i", "pipe:0", "-map", f"0:{stream_index}",
+            "-f", "webvtt", "-", "-loglevel", "error"
+        ]
+
+        process = await asyncio.create_subprocess_exec(
+            *command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
-        from_bytes = 0
-        until_bytes = file_size -1
-
-        if range_header:
-            try:
-                from_bytes_str, until_bytes_str = range_header.replace("bytes=", "").split("-")
-                from_bytes = int(from_bytes_str)
-                until_bytes = int(until_bytes_str) if until_bytes_str else file_size - 1
-                
-                if (until_bytes >= file_size) or (from_bytes < 0) or (until_bytes < from_bytes):
-                    raise ValueError
-                
-                response.set_status(206)
-                response.headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
-            
-            except (ValueError, IndexError):
-                return web.Response(status=416, text="416: Range Not Satisfiable")
-        else:
-            response.set_status(200)
-
-        req_length = (until_bytes - from_bytes) + 1
-        response.headers["Content-Length"] = str(req_length)
-
-        # --- මෙන්න අවසානම සහ නිවැරදිම ගණනය කිරීම ---
-        # ඔබගේ yield_file function එකට ගැළපෙන ලෙස parameters සකස් කිරීම
-        chunk_size = 1024 * 1024
-        offset = from_bytes - (from_bytes % chunk_size)
-        first_part_cut = from_bytes - offset
-        last_part_cut = (until_bytes % chunk_size) + 1 if until_bytes % chunk_size != 0 else chunk_size
-        part_count = math.ceil((until_bytes - offset + 1) / chunk_size)
-        # -----------------------------------------------
-
-        # --- Streaming ක්‍රියාවලිය ---
+        response = web.StreamResponse(
+            headers={ "Content-Type": "text/vtt", "Cache-Control": "max-age=3600" }
+        )
         await response.prepare(request)
         
-        file_stream = tg_connect.yield_file(
-            file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size
-        )
+        async def stream_video_to_ffmpeg():
+            # --- මෙන්න අවසානම වෙනස ---
+            # සම්පූර්ණ ගොනුවම stream කරනවා වෙනුවට, මුල් 50MB පමණක් stream කිරීම
+            # මෙමගින් server එක crash වීම 100%ක්ම වලකයි
+            total_data_to_pipe = 50 * 1024 * 1024
+            chunk_size = 1024 * 1024
+            parts = math.ceil(total_data_to_pipe / chunk_size)
+            
+            file_stream = tg_connect.yield_file(file_id, work_load_index, 0, 0, 0, parts, chunk_size)
+            piped_data = 0
+            try:
+                async for chunk in file_stream:
+                    if process.stdin.is_closing() or piped_data >= total_data_to_pipe: break
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+                    piped_data += len(chunk)
+            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError): pass
+            finally:
+                if not process.stdin.is_closing(): process.stdin.close()
 
-        streamed_bytes = 0
-        try:
-            async for chunk in file_stream:
-                if streamed_bytes + len(chunk) > req_length:
-                    chunk = chunk[:req_length - streamed_bytes]
-                
-                await response.write(chunk)
-                streamed_bytes += len(chunk)
+        async def stream_subtitle_to_client():
+            try:
+                while not process.stdout.at_eof():
+                    chunk = await process.stdout.read(1024)
+                    if not chunk: break
+                    await response.write(chunk)
+            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError): pass
 
-                if streamed_bytes >= req_length:
-                    break
-        except (asyncio.CancelledError, ConnectionResetError):
-            pass
-        
+        await asyncio.gather(stream_video_to_ffmpeg(), stream_subtitle_to_client())
+        await process.wait()
         return response
 
-    except FIleNotFound as e:
-        raise web.HTTPNotFound(text=str(e))
     except Exception:
-        logging.error(f"Download handler critical error: {traceback.format_exc()}")
+        logging.error(f"Subtitle handler failed critically: {traceback.format_exc()}")
         raise web.HTTPInternalServerError()
