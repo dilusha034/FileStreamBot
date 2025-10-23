@@ -1,30 +1,31 @@
-import aiohttp
-import jinja2
-import urllib.parse
-from FileStream.config import Telegram, Server
-from FileStream.utils.database import Database
-from FileStream.utils.human_readable import humanbytes
-db = Database(Telegram.DATABASE_URL, Telegram.SESSION_NAME)
+import aiofiles
+from aiohttp.web import Request
+from FileStream.bot import multi_clients, work_loads
+from FileStream.server.exceptions import FIleNotFound, InvalidHash
+from FileStream import utils
 
-async def render_page(db_id):
-    file_data=await db.get_file(db_id)
-    src = urllib.parse.urljoin(Server.URL, f'dl/{file_data["_id"]}')
-    file_size = humanbytes(file_data['file_size'])
-    file_name = file_data['file_name'].replace("_", " ")
+async def render_page(db_id: str, request: Request) -> str:
+    try:
+        index = min(work_loads, key=work_loads.get)
+        tg_connect = utils.ByteStreamer(multi_clients[index])
+        file_id = await tg_connect.get_file_properties(db_id)
+        
+        file_name = utils.get_name(file_id)
+        file_size = utils.get_readable_file_size(file_id.file_size)
 
-    if str((file_data['mime_type']).split('/')[0].strip()) == 'video':
-        template_file = "FileStream/template/play.html"
-    else:
-        template_file = "FileStream/template/dl.html"
-        async with aiohttp.ClientSession() as s:
-            async with s.get(src) as u:
-                file_size = humanbytes(int(u.headers.get('Content-Length')))
+        # --- මෙන්න අවසානම සහ ස්ථිරම විසඳුම ---
+        # URL variable එකක් වෙනුවට, request එකෙන්ම URL එක ස්වයංක්‍රීයව සකස් කිරීම
+        scheme = request.headers.get("X-Forwarded-Proto", request.scheme)
+        host = request.host
+        dl_url = f"{scheme}://{host}/dl/{db_id}"
 
-    with open(template_file) as f:
-        template = jinja2.Template(f.read())
-
-    return template.render(
-        file_name=file_name,
-        file_url=src,
-        file_size=file_size
-    )
+        async with aiofiles.open('FileStream/template/play.html', mode='r', encoding='utf-8') as f:
+            html = await f.read()
+        
+        html = html.replace("{{file_name}}", file_name)
+        html = html.replace("{{file_size}}", file_size)
+        html = html.replace("{{dl_url}}", dl_url)
+        
+        return html
+    except (FIleNotFound, InvalidHash) as e:
+        raise e
