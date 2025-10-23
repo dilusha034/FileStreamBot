@@ -50,14 +50,23 @@ async def subtitles_handler(request: web.Request):
         process = await asyncio.create_subprocess_exec(
             *command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024 * 1024)
+        
+       file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024 * 1024)
         
         try:
-            stdout, stderr = await process.communicate(input=await file_stream.read())
-        except Exception as e:
-            await process.kill()
-            logging.error(f"Error communicating with ffprobe: {e}")
-            raise
+            async for chunk in file_stream:
+                if process.stdin.is_closing():
+                    break
+                process.stdin.write(chunk)
+                await process.stdin.drain()
+        except (BrokenPipeError, asyncio.CancelledError, ConnectionResetError):
+            logging.warning("FFprobe pipe closed early (often normal).")
+            pass
+        finally:
+            if not process.stdin.is_closing():
+                process.stdin.close()
+
+        stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
             logging.error(f"FFprobe error: {stderr.decode().strip()}")
@@ -70,7 +79,7 @@ async def subtitles_handler(request: web.Request):
         return web.json_response(subtitles_data.get('streams', []))
         
     except Exception:
-        logging.error(f"Subtitle probing failed: {traceback.format_exc()}")
+        logging.error(f"Subtitle probing failed critically: {traceback.format_exc()}")
         return web.json_response({"error": "Server exception"}, status=500)
 
 @routes.get("/subtitle/{db_id}/{index}")
