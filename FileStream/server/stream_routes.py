@@ -82,6 +82,7 @@ async def download_handler(request: web.Request):
         file_name = utils.get_name(file_id)
         mime_type = file_id.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
         range_header = request.headers.get("Range")
+        from_bytes = 0
         if range_header:
             try:
                 range_val = range_header.split("=")[1]
@@ -95,7 +96,6 @@ async def download_handler(request: web.Request):
             except (ValueError, IndexError):
                 return web.Response(status=416, reason="Range Not Satisfiable")
         else:
-            from_bytes = 0
             response = web.StreamResponse(status=200, headers={'Content-Type': mime_type, 'Content-Length': str(file_size)})
         await response.prepare(request)
         streamer = tg_connect.yield_file(file_id, index, from_bytes, 0, 0, 0, 1024 * 1024)
