@@ -51,7 +51,7 @@ async def subtitles_handler(request: web.Request):
             *command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         
-       file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024 * 1024)
+        file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024 * 1024)
         
         try:
             async for chunk in file_stream:
