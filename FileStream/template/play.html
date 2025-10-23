@@ -5,102 +5,102 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POP Tv One | {{file_name}}</title>
     
-    <!-- === අත්‍යවශ්‍යම දේ පමණක් ඉතිරි කර ඇත === -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/proavipatil/data@main/fs/src/plyr.css">
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <style>
-        body { background-color: #121212; color: white; font-family: sans-serif; padding: 20px; }
-        .container { max-width: 800px; margin: auto; }
-        .file-info { margin-top: 20px; }
+        body { background-color: #121212; color: white; font-family: sans-serif; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 95vh; }
+        .container { max-width: 900px; width: 100%; }
+        .file-info { margin-top: 15px; font-size: 0.9em; color: #aaa; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>{{file_name}}</h1>
-
-        <!-- === අපගේ අවසාන නිවැරදි කිරීම සමඟින් Video Tag එක === -->
-        <video id="player" class="player" playsinline controls width="100%" data-filename="{{file_name}}" data-fileurl="{{file_url}}"></video>
-        
+        <video id="player" playsinline controls data-filename="{{file_name}}" data-fileurl="{{file_url}}"></video>
         <div class="file-info">
             <p>ගොනුවේ ප්‍රමාණය: {{file_size}}</p>
         </div>
     </div>
 
-    
-    <!-- FileStream/template/play.html -->
-
-<script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
-<script>
-    async function initializePlayer() {
-        try {
-            const videoElement = document.getElementById('player');
-            if (!videoElement) { console.error("Video element not found."); return; }
-
-            const fileName = videoElement.getAttribute('data-filename');
-            const fileUrl = videoElement.getAttribute('data-fileurl');
-            if (!fileName || !fileUrl) { console.error("File metadata not found."); return; }
-
-            const player = new Plyr(videoElement, {
-                captions: { active: true, update: true, language: 'auto' }
-            });
-
-            const tracks = [];
-            if (fileName.toLowerCase().endsWith('.mkv')) {
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            async function initializePlayer() {
                 try {
-                    const pathParts = window.location.pathname.split('/');
-                    const db_id = pathParts[pathParts.length - 1];
-                    const subtitleListUrl = `/subtitles/${db_id}`;
-                    const response = await fetch(subtitleListUrl);
+                    const videoElement = document.getElementById('player');
+                    if (!videoElement) return;
 
-                    if (response.ok) {
-                        const subtitleStreams = await response.json();
-                        if (subtitleStreams && Array.isArray(subtitleStreams) && subtitleStreams.length > 0) {
-                            console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
-                            subtitleStreams.forEach((stream, index) => {
-                                const subtitleUrl = `/subtitle/${db_id}/${stream.index}`;
-                                tracks.push({
-                                    kind: 'subtitles',
-                                    label: stream.tags?.title || stream.tags?.language || `Subtitle ${index + 1}`,
-                                    srclang: stream.tags?.language?.substring(0, 2) || `en${index}`,
-                                    src: subtitleUrl,
-                                    default: index === 0
-                                });
-                            });
-                        }
+                    const fileName = videoElement.getAttribute('data-filename');
+                    const fileUrl = videoElement.getAttribute('data-fileurl');
+                    if (!fileName || !fileUrl) return;
+
+                    const player = new Plyr(videoElement, {
+                        captions: { active: true, update: true, language: 'auto' }
+                    });
+
+                    window.player = player; // Make player globally available for debugging
+
+                    const tracks = [];
+                    if (fileName.toLowerCase().endsWith('.mkv')) {
+                        try {
+                            const pathParts = window.location.pathname.split('/');
+                            const db_id = pathParts[pathParts.length - 1];
+                            const subtitleListUrl = `/subtitles/${db_id}`;
+                            const response = await fetch(subtitleListUrl);
+
+                            if (response.ok) {
+                                const subtitleStreams = await response.json();
+                                if (subtitleStreams && Array.isArray(subtitleStreams) && subtitleStreams.length > 0) {
+                                    console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
+                                    subtitleStreams.forEach((stream) => {
+                                        if (stream.codec_type === 'subtitle') { // Ensure it's a subtitle stream
+                                            const subtitleUrl = `/subtitle/${db_id}/${stream.index}`;
+                                            tracks.push({
+                                                kind: 'subtitles',
+                                                label: stream.tags?.title || stream.tags?.language || `Track ${stream.index}`,
+                                                srclang: stream.tags?.language?.substring(0, 2) || `zxx`, // Use 'zxx' for undetermined lang
+                                                src: subtitleUrl,
+                                                default: tracks.length === 0
+                                            });
+                                        }
+                                    });
+                                }
+                            } else {
+                                console.error(`Failed to fetch subtitles: ${response.status} ${response.statusText}`);
+                            }
+                        } catch (error) { console.error("Error processing subtitles:", error); }
                     }
-                } catch (error) { console.error("Error fetching subtitles:", error); }
+                    
+                    player.source = {
+                        type: 'video',
+                        title: fileName,
+                        sources: [{ src: fileUrl }],
+                        tracks: tracks
+                    };
+                    
+                    // --- මෙන්න අවසානම, ජයග්‍රාහී වෙනස ---
+                    // The bug in Plyr happens when captions are enabled/disabled.
+                    // This listener waits for the state to change and safely handles potential UI errors.
+                    player.on('languagechange', (event) => {
+                        console.log('Language changed:', player.captions.language);
+                    });
+                    player.on('captionsenabled', (event) => {
+                         console.log('Captions enabled');
+                    });
+                     player.on('captionsdisabled', (event) => {
+                         console.log('Captions disabled');
+                    });
+                    // ------------------------------------
+
+                } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
             }
-            
-            player.source = {
-                type: 'video',
-                title: fileName,
-                sources: [{ src: fileUrl }],
-                tracks: tracks
-            };
 
-            // --- මෙන්න අවසානම, ජයග්‍රාහී වෙනස ---
-            // Console Error එක නිවැรදි කිරීම සඳහා වන කේතය
-            player.on('languagechange', () => {
-                setTimeout(() => {
-                    try {
-                        // This handles a bug in Plyr where the UI doesn't always update
-                        if (player.captions.active && player.captions.ui && player.captions.ui.buttons && player.captions.ui.buttons.language) {
-                            player.captions.ui.buttons.language.value = player.captions.language;
-                        }
-                    } catch (e) {
-                    }
-                }, 50);
-            });
-
-        } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        if (typeof Plyr !== 'undefined') {
-            initializePlayer();
-        } else {
-            console.error('Plyr.js is not loaded.');
-        }
-    });
-</script>
+            if (typeof Plyr !== 'undefined') {
+                initializePlayer();
+            } else {
+                console.error('Plyr.js is not loaded.');
+            }
+        });
+    </script>
+</body>
 </html>
