@@ -79,17 +79,17 @@
                 tracks: tracks
             };
 
-            // --- මෙන්න නිවැරදි ස්ථානය! ---
-            // player.source එකට පසුව, නමුත් initializePlayer function එක ඇතුළතම
+          // player.source එකට පසුව, නමුත් initializePlayer function එක ඇතුළතම
             player.on('languagechange', () => {
-                setTimeout(() => {
-                    const activeCaption = player.captions.active;
-                    // player.captions.ui එක null ද නැද්ද කියා පරීක්ෂා කිරීම අත්‍යවශ්‍යයි
-                    if (activeCaption && player.captions.ui && player.captions.ui.buttons && player.captions.ui.buttons.language) {
-                        player.captions.ui.buttons.language.value = activeCaption.language;
-                    }
-                }, 100);
-            });
+    setTimeout(() => {
+        try {
+            if (player.captions.active && player.captions.ui.buttons.language) {
+                player.captions.ui.buttons.language.value = player.captions.language;
+            }
+        } catch (e) {
+        }
+    }, 50);
+});
 
         } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
     }
