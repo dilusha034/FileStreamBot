@@ -124,134 +124,78 @@
 <script src="https://proavipatil.github.io/data/fs/src/script.js"></script>
 
 <!-- === Operation Final Victory: The Commando Code === -->
+<!-- ඔබගේ play.html ගොනුවේ, පහළින්ම ඇති, පැරණි script block එක සම්පූර්ණයෙන්ම මකා, මෙය යොදන්න -->
+
 <script>
-    const commandoInterval = setInterval(function() {
-        const videoElement = document.getElementById('player');
-        if (videoElement && typeof Plyr !== 'undefined' && videoElement.plyr) {
-            clearInterval(commandoInterval);
-            console.log("VICTORY: Player fortress captured! Executing our plan...");
-            try {
-                const player = videoElement.plyr;
-                const fileName = "{{file_name}}";
-                const fileUrl = "{{file_url}}";
-                const sources = {
-                    type: 'video',
-                    title: fileName,
-                    sources: [{ src: fileUrl }],
-                    tracks: []
-                };
-                if (fileName.toLowerCase().endsWith('.mkv')) {
-                    sources.tracks.push({
-                        kind: 'subtitles',
-                        label: 'සිංහල',
-                        srclang: 'si',
-                        src: fileUrl.replace('/dl/', '/subtitle/'),
-                        default: true,
-                    });
-                }
-                player.source = sources;
-                // === Precision Strike: Restoring All Player Features ===
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const videoElement = document.getElementById('player');
+            if (!videoElement) return;
 
-// 1. Auto-Rotation Feature (Restored)
-player.on('enterfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.lock === 'function') { screen.orientation.lock('landscape').catch(() => {}); } } catch (err) {} } });
-player.on('exitfullscreen', () => { if (window.screen.width < 768) { try { if (screen.orientation && typeof screen.orientation.unlock === 'function') { screen.orientation.unlock(); } } catch (err) {} } });
+            const fileName = "{{file_name}}";
+            const fileUrl = "{{file_url}}";
+            if (!fileName || !fileUrl) return;
 
-// 2. Advanced Touch Controls for Mobile (Double-tap Skip & Single-tap Play/Pause)
-const playerContainer = player.elements.container;
-const rewindIndicator = document.createElement('div');
-rewindIndicator.className = 'skip-indicator skip-indicator-rewind';
-rewindIndicator.innerHTML = `<span class="arrows">&laquo;</span><span>10s</span>`;
-playerContainer.appendChild(rewindIndicator);
-const forwardIndicator = document.createElement('div');
-forwardIndicator.className = 'skip-indicator skip-indicator-forward';
-forwardIndicator.innerHTML = `<span class="arrows">&raquo;</span><span>10s</span>`;
-playerContainer.appendChild(forwardIndicator);
+            const player = new Plyr(videoElement, {
+                captions: { active: true, update: true, language: 'auto' }
+            });
 
-let tapTimeout = null;
-let lastTapTime = 0;
-const DOUBLE_TAP_DELAY = 300; // මිලි තත්පර 300ක් ඇතුළත tap දෙකක්
-
-// අපි 'click' වෙනුවට mobile වලටම හදපු 'touchend' event එක පාවිච්චි කරනවා
-playerContainer.addEventListener('touchend', (e) => {
-    // ප්ලේයරයේ control bar එක touch කළොත්, අපේ කිසිම දෙයක් කරන්න එපා
-    if (e.target.closest('.plyr__controls')) return;
-    
-    // Touch event එකක් නැත්නම් මුකුත් කරන්න එපා
-    if (!e.changedTouches || e.changedTouches.length === 0) return;
-
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTapTime;
-    clearTimeout(tapTimeout);
-
-    if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
-        // --- මෙන්න අපේ Medusa පහර! ---
-        // මේ double tap එක ගැන වෙන කිසිම කෙනෙක්ට දැනගන්න ඉඩ තියන්න එපා!
-        e.preventDefault();
-        e.stopPropagation(); 
-        
-        // Double Tap
-        const rect = playerContainer.getBoundingClientRect();
-        const touchX = e.changedTouches[0].clientX;
-        const tapPositionX = touchX - rect.left;
-
-        if (tapPositionX < rect.width * 0.35) {
-            // වම් පැත්තට double tap - Rewind
-            player.rewind(10);
-            rewindIndicator.classList.add('visible');
-            setTimeout(() => rewindIndicator.classList.remove('visible'), 500);
-        } else if (tapPositionX > rect.width * 0.65) {
-            // දකුණු පැත්තට double tap - Forward
-            player.forward(10);
-            forwardIndicator.classList.add('visible');
-            setTimeout(() => forwardIndicator.classList.remove('visible'), 500);
-        } else {
-            // මැද double tap - Fullscreen
-            player.fullscreen.toggle();
-        }
-        lastTapTime = 0; // double tap එකක් නිසා, single tap timer එක reset කරනවා
-    } else {
-        // Single Tap
-        tapTimeout = setTimeout(() => {
-            // single tap එකකින් play/pause වෙනවා
-            player.togglePlay();
-        }, DOUBLE_TAP_DELAY);
-    }
-    lastTapTime = currentTime;
-});
-
-// CSS for Skip Indicators (මේ ටික කලින් තිබ්බ නිසා වෙනසක් නෑ)
-const styles = `
-    .skip-indicator {
-        position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.4);
-        color: white; padding: 15px 25px; border-radius: 50px; font-family: 'Josefin Sans', sans-serif;
-        font-size: 1.2em; opacity: 0; transition: opacity 0.3s ease-out; pointer-events: none;
-        display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-    }
-    .skip-indicator.visible { opacity: 1; }
-    .skip-indicator .arrows { font-size: 2.5em; line-height: 1; font-weight: bold; }
-    .skip-indicator-rewind { left: 10%; } .skip-indicator-forward { right: 10%; }
-`;
-const styleSheet = document.createElement("style");
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
-
-// === End of Operation Medusa ===
+            // --- මෙන්න අවසානම සහ නිවැරදිම ක්‍රමය ---
+            if (fileName.toLowerCase().endsWith('.mkv')) {
+                const pathParts = window.location.pathname.split('/');
+                const db_id = pathParts[pathParts.length - 1];
                 
-                player.on('ready', () => {
-                    if (fileName.toLowerCase().endsWith('.mkv')) {
-                        player.toggleCaptions(true);
+                // 1. Server එකෙන් උපසිරැසි ලැයිස්තුව (Menu එක) ඉල්ලීම
+                const response = await fetch(`/subtitles/${db_id}`);
+                
+                if (response.ok) {
+                    const subtitleStreams = await response.json();
+                    if (subtitleStreams && subtitleStreams.length > 0) {
+                        console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
+                        
+                        // 2. ලැබුණු ලැයිස්තුවෙන්, player එකට tracks නිර්මාණය කිරීම
+                        const tracks = subtitleStreams
+                            .filter(s => s.codec_type === 'subtitle')
+                            .map(s => ({
+                                kind: 'subtitles',
+                                label: s.tags?.title || s.tags?.language || `Track ${s.index}`,
+                                srclang: s.tags?.language?.substring(0, 2) || 'zxx', // zxx = Undetermined language
+                                src: `/subtitle/${db_id}/${s.index}`,
+                            }));
+                        
+                        // 3. Player එක, වීඩියෝව සහ නව උපසිරැසි ලැයිස්තුව සමඟින් නැවත සකස් කිරීම
+                        player.source = {
+                            type: 'video',
+                            title: fileName,
+                            sources: [{ src: fileUrl }],
+                            tracks: tracks
+                        };
+
+                        // 4. පළමු උපසිරැසිය ස්වයංක්‍රීයව තේරීම
+                        if (tracks.length > 0) {
+                            player.once('ready', () => {
+                               setTimeout(() => { 
+                                   player.currentTrack = 0; 
+                                   player.captions.enabled = true;
+                                }, 500); // 500ms delay for stability
+                            });
+                        }
+                    } else {
+                        // MKV, but no subtitles found
+                         player.source = { type: 'video', title: fileName, sources: [{ src: fileUrl }] };
                     }
-                });
-                const heading = document.getElementById('heading');
-                if (heading) {
-                    heading.textContent = 'POP Tv One';
-                    heading.style.visibility = 'visible';
+                } else {
+                    // Failed to fetch list, just play video
+                     player.source = { type: 'video', title: fileName, sources: [{ src: fileUrl }] };
                 }
-            } catch (error) {
-                console.error("Commando Code execution failed:", error);
+            } else {
+                // Not an MKV file, just play video
+                 player.source = { type: 'video', title: fileName, sources: [{ src: fileUrl }] };
             }
+
+        } catch (error) {
+            console.error("Player initialization failed:", error);
         }
-    }, 100);
+    });
 </script>
 </html>
