@@ -41,27 +41,34 @@ async def subtitles_handler(request: web.Request):
             tg_connect = utils.ByteStreamer(faster_client)
             class_cache[faster_client] = tg_connect
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-        command = ['ffprobe', '-v', 'error', '-print_format', 'json', '-show_streams', '-select_streams', 's', 'pipe:0']
+        
+        command = [
+            'ffprobe', '-v', 'error', '-print_format', 'json',
+            '-show_streams', '-select_streams', 's', 'pipe:0'
+        ]
+        
         process = await asyncio.create_subprocess_exec(
             *command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        total_data_to_pipe = 50 * 1024 * 1024
-        chunk_size = 1024 * 1024
-        parts = math.ceil(total_data_to_pipe / chunk_size)
-        file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, parts, chunk_size)
-        piped_data = 0
+        file_stream = tg_connect.yield_file(file_id, index, 0, 0, 0, 0, 1024 * 1024)
+        
         try:
-            async for chunk in file_stream:
-                if process.stdin.is_closing() or piped_data >= total_data_to_pipe: break
-                process.stdin.write(chunk)
-                await process.stdin.drain()
-                piped_data += len(chunk)
-        except (BrokenPipeError, asyncio.CancelledError, ConnectionResetError): pass
-        finally:
-            if not process.stdin.is_closing(): process.stdin.close()
-        stdout, _ = await process.communicate()
-        if not stdout: return web.json_response([])
-        return web.json_response(json.loads(stdout).get('streams', []))
+            stdout, stderr = await process.communicate(input=await file_stream.read())
+        except Exception as e:
+            await process.kill()
+            logging.error(f"Error communicating with ffprobe: {e}")
+            raise
+
+        if process.returncode != 0:
+            logging.error(f"FFprobe error: {stderr.decode().strip()}")
+            return web.json_response({"error": "FFprobe failed"}, status=500)
+            
+        if not stdout: 
+            return web.json_response([])
+            
+        subtitles_data = json.loads(stdout)
+        return web.json_response(subtitles_data.get('streams', []))
+        
     except Exception:
         logging.error(f"Subtitle probing failed: {traceback.format_exc()}")
         return web.json_response({"error": "Server exception"}, status=500)
