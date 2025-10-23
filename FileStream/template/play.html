@@ -16,7 +16,7 @@
 <body>
     <div class="container">
         <h1>{{file_name}}</h1>
-        <video id="player" playsinline controls data-filename="{{file_name}}" data-fileurl="{{file_url}}"></video>
+        <video id="player" playsinline controls data-filename="{{file_name}}" data-fileurl="{{dl_url}}"></video>
         <div class="file-info">
             <p>ගොනුවේ ප්‍රමාණය: {{file_size}}</p>
         </div>
@@ -34,7 +34,7 @@
                 if (!fileName || !fileUrl) return;
 
                 const player = new Plyr(videoElement, {
-                    captions: { active: true, update: true }
+                    captions: { active: true, update: true, language: 'auto' }
                 });
 
                 if (fileName.toLowerCase().endsWith('.mkv')) {
@@ -45,7 +45,6 @@
                     if (response.ok) {
                         const subtitleStreams = await response.json();
                         if (subtitleStreams && subtitleStreams.length > 0) {
-                            console.log(`${subtitleStreams.length} උපසිරැසි පථ සොයාගන්නා ලදී.`);
                             const tracks = subtitleStreams
                                 .filter(s => s.codec_type === 'subtitle')
                                 .map(s => ({
@@ -53,31 +52,25 @@
                                     label: s.tags?.title || s.tags?.language || `Track ${s.index}`,
                                     srclang: s.tags?.language?.substring(0, 2) || 'zxx',
                                     src: `/subtitle/${db_id}/${s.index}`,
-                                    default: false
                                 }));
                             
-                            // Dynamically update the player's source with the fetched tracks
                             player.source = {
                                 type: 'video',
                                 title: fileName,
-                                sources: [{ src: fileUrl, type: 'video/mp4' }],
+                                sources: [{ src: fileUrl }],
                                 tracks: tracks
                             };
 
-                            // Activate the first available subtitle track by default
                             if (tracks.length > 0) {
-                                player.once('canplay', () => {
-                                   setTimeout(() => { player.currentTrack = 0; }, 100);
+                                player.once('ready', () => {
+                                   setTimeout(() => { 
+                                       player.currentTrack = 0; 
+                                       player.captions.enabled = true;
+                                    }, 200);
                                 });
                             }
                         }
                     }
-                } else {
-                     player.source = {
-                        type: 'video',
-                        title: fileName,
-                        sources: [{ src: fileUrl, type: 'video/mp4' }]
-                    };
                 }
             } catch (error) {
                 console.error("Player initialization failed:", error);
