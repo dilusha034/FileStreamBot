@@ -26,10 +26,10 @@
         </div>
     </div>
 
-    <!-- === Plyr.js நூலகය සහ අපගේ අවසන් වරට නිවැරදි කළ Script එක === -->
+    
     <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
-    <!-- FileStream/template/play.html ගොනුවේ ඇති සම්පූර්ණ <script>...</script> කොටස මකා, මෙය යොදන්න -->
-
+   
+<script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
 <script>
     async function initializePlayer() {
         try {
@@ -40,7 +40,6 @@
             const fileUrl = videoElement.getAttribute('data-fileurl');
             if (!fileName || !fileUrl) { console.error("File metadata not found."); return; }
 
-            // --- මෙතන තමයි player විචල්‍යය නිර්මාණය වෙන්නේ ---
             const player = new Plyr(videoElement, {
                 captions: { active: true, update: true, language: 'auto' }
             });
@@ -78,18 +77,6 @@
                 sources: [{ src: fileUrl }],
                 tracks: tracks
             };
-
-          // player.source එකට පසුව, නමුත් initializePlayer function එක ඇතුළතම
-            player.on('languagechange', () => {
-    setTimeout(() => {
-        try {
-            if (player.captions.active && player.captions.ui.buttons.language) {
-                player.captions.ui.buttons.language.value = player.captions.language;
-            }
-        } catch (e) {
-        }
-    }, 50);
-});
 
         } catch (error) { console.error("A critical error occurred in initializePlayer:", error); }
     }
