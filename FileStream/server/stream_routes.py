@@ -1,7 +1,3 @@
-# ===============================================================
-# === FileStream/server/stream_routes.py (සම්පූර්ණ ගොනුව) ===
-# ===============================================================
-
 import time
 import math
 import logging
@@ -135,59 +131,53 @@ async def subtitle_handler(request: web.Request):
         raise web.HTTPInternalServerError()
 
 # 5. වීඩියෝව Stream කිරීමේ Route (අවසාන නිවැරදි කළ කේතය)
-@routes.get("/dl/{path}", allow_head=True)
-async def download_handler(request: web.Request):
+@routes.get("/subtitle/{db_id}/{index}")
+async def subtitle_handler(request: web.Request):
     try:
-        db_id = request.match_info["path"]
-        index = min(work_loads, key=work_loads.get)
-        faster_client = multi_clients[index]
+        db_id = request.match_info['db_id']
+        stream_index = request.match_info['index']
+        work_load_index = min(work_loads, key=work_loads.get)
+        faster_client = multi_clients[work_load_index]
         tg_connect = class_cache.get(faster_client)
         if not tg_connect:
             tg_connect = utils.ByteStreamer(faster_client)
             class_cache[faster_client] = tg_connect
         file_id = await tg_connect.get_file_properties(db_id, multi_clients)
-        file_name = utils.get_name(file_id)
-        file_size = file_id.file_size
-        mime_type = file_id.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-        range_header = request.headers.get("Range")
-        response = web.StreamResponse(headers={"Content-Type": mime_type, "Accept-Ranges": "bytes"})
-        from_bytes = 0
-        until_bytes = file_size - 1
-        if range_header:
-            try:
-                from_bytes_str, until_bytes_str = range_header.replace("bytes=", "").split("-")
-                from_bytes = int(from_bytes_str)
-                until_bytes = int(until_bytes_str) if until_bytes_str else file_size - 1
-                if (until_bytes >= file_size) or (from_bytes < 0) or (until_bytes < from_bytes): raise ValueError
-                response.set_status(206)
-                response.headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
-            except (ValueError, IndexError):
-                return web.Response(status=416, text="416: Range Not Satisfiable")
-        else:
-            response.set_status(200)
-        req_length = (until_bytes - from_bytes) + 1
-        response.headers["Content-Length"] = str(req_length)
-        chunk_size = 1024 * 1024
-        offset = from_bytes - (from_bytes % chunk_size)
-        first_part_cut = from_bytes - offset
-        last_part_cut = (until_bytes % chunk_size) + 1
-        part_count = math.ceil((until_bytes - offset + 1) / chunk_size)
-        await response.prepare(request)
-        file_stream = tg_connect.yield_file(
-            file_id, index, offset, first_part_cut, last_part_cut, part_count, chunk_size
+        command = [
+            "ffmpeg", "-i", "pipe:0", "-map", f"0:{stream_index}",
+            "-f", "webvtt", "-", "-loglevel", "error"
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        streamed_bytes = 0
-        try:
-            async for chunk in file_stream:
-                if streamed_bytes + len(chunk) > req_length:
-                    chunk = chunk[:req_length - streamed_bytes]
-                await response.write(chunk)
-                streamed_bytes += len(chunk)
-                if streamed_bytes >= req_length: break
-        except (asyncio.CancelledError, ConnectionResetError): pass
+        response = web.StreamResponse(headers={"Content-Type": "text/vtt", "Cache-Control": "max-age=3600"})
+        await response.prepare(request)
+        
+        async def stream_video_to_ffmpeg():
+            # --- මෙන්න අවසානම සහ තර්කානුකූලම වෙනස ---
+            # 50MB සීමාව ඉවත් කර, සම්පූර්ණ ගොනුවම ffmpeg වෙත stream කිරීම
+            # (ඔබගේ Pro Plan එක නිසා මෙය දැන් 100%ක්ම ආරක්ෂිතයි)
+            file_stream = tg_connect.yield_file(file_id, work_load_index, 0, 0, 0, 0, 1024 * 1024)
+            try:
+                async for chunk in file_stream:
+                    if process.stdin.is_closing(): break
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+            except (BrokenPipeError, asyncio.CancelledError, ConnectionResetError): pass
+            finally:
+                if not process.stdin.is_closing(): process.stdin.close()
+
+        async def stream_subtitle_to_client():
+            try:
+                while not process.stdout.at_eof():
+                    chunk = await process.stdout.read(1024)
+                    if not chunk: break
+                    await response.write(chunk)
+            except (BrokenPipeError, asyncio.CancelledError, ConnectionResetError): pass
+
+        await asyncio.gather(stream_video_to_ffmpeg(), stream_subtitle_to_client())
+        await process.wait()
         return response
-    except FIleNotFound as e:
-        raise web.HTTPNotFound(text=str(e))
     except Exception:
-        logging.error(f"Download handler critical error: {traceback.format_exc()}")
+        logging.error(f"Subtitle handler failed critically: {traceback.format_exc()}")
         raise web.HTTPInternalServerError()
