@@ -1,4 +1,3 @@
-# Final, Confirmed stream_routes.py
 import time, math, logging, mimetypes, traceback, json, asyncio, subprocess
 from aiohttp import web
 from FileStream.bot import multi_clients, work_loads
@@ -72,7 +71,7 @@ async def download_handler(request: web.Request):
         if range_header:
             from_bytes, until_bytes = [int(x) for x in range_header.replace("bytes=", "").split("-") if x]
             until_bytes = until_bytes if until_bytes else file_size - 1
-            response = web.StreamResponse(status=206, headers={'Content-Type': mime_type, 'Content-Range': f'bytes {from_bytes}-{until_bytes}/{file_size}', 'Content-Length': str(until_bytes - from_bytes + 1)})
+            response = web.StreamResponse(status=2_6, headers={'Content-Type': mime_type, 'Content-Range': f'bytes {from_bytes}-{until_bytes}/{file_size}', 'Content-Length': str(until_bytes - from_bytes + 1)})
         else:
             from_bytes = 0
             response = web.StreamResponse(headers={'Content-Type': mime_type, 'Content-Length': str(file_size)})
